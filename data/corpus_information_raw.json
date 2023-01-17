@@ -1,0 +1,33 @@
+{
+  "PGX": {
+    "file_list": ["PGX_train_base_model_data.json", "PGX_valid_base_model_data.json", "PGX_test_base_model_data.json"],
+    "entity_type_list": ["Chemical", "Genomic_factor", "Gene_or_protein", "Genomic_variation", "Limited_variation",
+                         "Haplotype", "Phenotype", "Disease", "Pharmacodynamic_phenotype","Pharmacokinetic_phenotype"],
+    "relation_list": ["isAssociatedWith", "influences", "causes", "decreases", "increases", "treats", "isEquivalentTo"]
+  },
+  "CPR": {
+    "file_list": ["CPR_train_base_model_data.json", "CPR_valid_base_model_data.json", "CPR_test_base_model_data.json"],
+    "entity_type_list": ["CHEMICAL", "GENE_Y", "GENE_N"],
+    "relation_list": ["CPR_3", "CPR_4", "CPR_5", "CPR_6", "CPR_9"]
+  },
+  "DDI": {
+    "file_list": ["DDI_train_base_model_data.json", "DDI_valid_base_model_data.json", "DDI_test_base_model_data.json"],
+    "entity_type_list": ["drug", "group", "brand", "drug_n"],
+    "relation_list": ["mechanism", "effect", "advise", "int"]
+  },
+  "CDR": {
+    "file_list": ["CDR_train_base_model_data.json", "CDR_valid_base_model_data.json", "CDR_test_base_model_data.json"],
+    "entity_type_list": ["Chemical", "Disease"],
+    "relation_list": ["CID"]
+  },
+  "ADE": {
+    "file_list": ["ADE_train_base_model_data.json", "ADE_valid_base_model_data.json", "ADE_test_base_model_data.json"],
+    "entity_type_list": ["adverse_effect", "drug"],
+    "relation_list": ["ADE"]
+  },
+  "Twi_ADE": {
+    "file_list": ["Twi_ADE_train_base_model_data.json", "Twi_ADE_valid_base_model_data.json", "Twi_ADE_test_base_model_data.json"],
+    "entity_type_list": ["Drug", "Disease_Symptom"],
+    "relation_list": ["Benefit", "Outcome-negative"]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "CPR": {
+    "file_list": ["CPR_train_base_model_data.json", "CPR_valid_base_model_data.json", "CPR_test_base_model_data.json"],
+    "entity_type_list": ["Drug", "Gene"],
+    "relation_list": ["Drug_Gene_interaction"]
+  },
+  "DDI": {
+    "file_list": ["DDI_train_base_model_data.json", "DDI_valid_base_model_data.json", "DDI_test_base_model_data.json"],
+    "entity_type_list": ["Drug"],
+    "relation_list": ["Drug_Drug_interaction"]
+  },
+  "ADE": {
+    "file_list": ["ADE_train_base_model_data.json", "ADE_valid_base_model_data.json", "ADE_test_base_model_data.json"],
+    "entity_type_list": ["Drug", "Disease"],
+    "relation_list": ["Drug_Disease_interaction"]
+  },
+  "Twi_ADE": {
+    "file_list": ["Twi_ADE_train_base_model_data.json", "Twi_ADE_valid_base_model_data.json", "Twi_ADE_test_base_model_data.json"],
+    "entity_type_list": ["Drug", "Disease"],
+    "relation_list": ["Drug_Disease_interaction"]
+  }
+}
