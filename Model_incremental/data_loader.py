@@ -181,27 +181,27 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
 
 def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, entity_type_num_list):
 
-    ID_fileds = torchtext.data.Field(batch_first=True, use_vocab=False, sequential=False)
-    TOEKNS_fileds = torchtext.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id, unk_token=tokenizer.unk_token_id)
+    ID_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
+    TOEKNS_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id, unk_token=tokenizer.unk_token_id)
 
-    TAGS_entity_span_fileds = torchtext.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None)
+    TAGS_entity_span_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None)
     TAGS_entity_span_fileds_dic = {"entity_span" :("entity_span", TAGS_entity_span_fileds)}
 
-    TAGS_sep_entity_fileds = torchtext.data.Field(dtype=torch.long, batch_first=True, unk_token=None,  pad_token=tokenizer.pad_token)
+    TAGS_sep_entity_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,  pad_token=tokenizer.pad_token)
     TAGS_sep_entity_fileds_dic = {"sep_entity" :("sep_entity", TAGS_sep_entity_fileds)}
 
-    TAGS_sampled_entity_span_fileds = torchtext.data.Field(dtype=torch.long, batch_first=True, unk_token=None,  pad_token=tokenizer.pad_token)
+    TAGS_sampled_entity_span_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,  pad_token=tokenizer.pad_token)
     TAGS_sampled_entity_span_fileds_dic = {"sampled_entity_span" :("sampled_entity_span", TAGS_sampled_entity_span_fileds)}
 
     TAGS_only_Entity_Type_fileds_dic = {}
     for entity in entity_type_num_list:
         TAGS_only_Entity_Type_fileds_dic["only_entity_type_"+entity] = ("only_entity_type_"+entity,
-                                                                        torchtext.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None))
+                                                                        torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None))
 
     TAGS_joint_Entity_Type_fileds_dic = {}
     for entity in entity_type_num_list:
         TAGS_joint_Entity_Type_fileds_dic["joint_entity_type_"+entity] = ("joint_entity_type_"+entity,
-                                                                          torchtext.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None))
+                                                                          torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None))
 
     fileds = {}
     fileds['ID'] = ('ID', ID_fileds)
@@ -215,7 +215,7 @@ def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list,
     train_file = file_train_valid_test_list[0]
     valid_file = file_train_valid_test_list[1]
     test_file = file_train_valid_test_list[2]
-    train_set, valid_set, test_set = torchtext.data.TabularDataset.splits(path="", train=train_file, validation = valid_file,
+    train_set, valid_set, test_set = torchtext.legacy.data.TabularDataset.splits(path="", train=train_file, validation = valid_file,
                                                                       test=test_file, format="json", fields=fileds)
 
 
@@ -229,7 +229,7 @@ def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list,
     for entity, filed in TAGS_joint_Entity_Type_fileds_dic.items():
             filed[1].build_vocab(train_set, valid_set, test_set, specials=["S", "B", "I", "E"])
 
-    train_iterator, valid_iterator, test_iterator = torchtext.data.BucketIterator.splits(
+    train_iterator, valid_iterator, test_iterator = torchtext.legacy.data.BucketIterator.splits(
             [train_set, valid_set, test_set], batch_size=BATCH_SIZE, sort=False, shuffle=True,
             repeat=False, device=device)
     return train_iterator, valid_iterator, test_iterator, TOEKNS_fileds, \
@@ -239,16 +239,16 @@ def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list,
 
 def prepared_RC_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, relation_list):
 
-    ID_fileds = torchtext.data.Field(batch_first=True, use_vocab=False, sequential=False)
-    TOEKNS_fileds = torchtext.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id, unk_token=tokenizer.unk_token_id)
+    ID_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
+    TOEKNS_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id, unk_token=tokenizer.unk_token_id)
 
-    TAGS_sampled_entity_span_fileds = torchtext.data.Field(dtype=torch.long, batch_first=True, unk_token=None,  pad_token=tokenizer.pad_token)
+    TAGS_sampled_entity_span_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,  pad_token=tokenizer.pad_token)
     TAGS_sampled_entity_span_fileds_dic = {"sampled_entity_span" :("sampled_entity_span", TAGS_sampled_entity_span_fileds)}
 
     TAGS_Relation_pair_fileds_dic = {}
     for relation in relation_list:
         TAGS_Relation_pair_fileds_dic["relation_"+relation] = ("relation_"+relation,
-                                                               torchtext.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None))
+                                                               torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token= tokenizer.pad_token, unk_token=None))
 
     fileds = {}
     fileds['ID'] = ('ID', ID_fileds)
@@ -259,7 +259,7 @@ def prepared_RC_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, 
     train_file = file_train_valid_test_list[0]
     valid_file = file_train_valid_test_list[1]
     test_file = file_train_valid_test_list[2]
-    train_set, valid_set, test_set = torchtext.data.TabularDataset.splits(path="", train=train_file, validation = valid_file,
+    train_set, valid_set, test_set = torchtext.legacy.data.TabularDataset.splits(path="", train=train_file, validation = valid_file,
                                                                       test=test_file, format="json", fields=fileds)
 
     TAGS_sampled_entity_span_fileds.build_vocab(train_set, valid_set, test_set)
@@ -267,7 +267,7 @@ def prepared_RC_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, 
     for relation, filed in TAGS_Relation_pair_fileds_dic.items():
         filed[1].build_vocab(train_set, valid_set, test_set)
 
-    train_iterator, valid_iterator, test_iterator = torchtext.data.BucketIterator.splits(
+    train_iterator, valid_iterator, test_iterator = torchtext.legacy.data.BucketIterator.splits(
         [train_set, valid_set, test_set], batch_size=BATCH_SIZE, sort=False, shuffle=True,
         repeat=False, device=device)
 
