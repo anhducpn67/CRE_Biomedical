@@ -134,7 +134,7 @@ class My_Entity_Type_Classifier(My_Ensembled_Classifier):
         self.device = device
         self.args = args
 
-        self.TAGS_my_types_classification = torchtext.data.Field(dtype=torch.long, batch_first=True, pad_token=None, unk_token=None)
+        self.TAGS_my_types_classification = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token=None, unk_token=None)
         self.TAGS_my_types_classification.vocab =  {"no":0, "yes":1}
         self.ignore_index = len(self.TAGS_my_types_classification.vocab)+1
 
@@ -231,7 +231,7 @@ class My_Relation_Classifier(nn.Module):
         super(My_Relation_Classifier, self).__init__()
         self.to(device)
         self.device = device
-        self.TAGS_my_types_classification = torchtext.data.Field(dtype=torch.long, batch_first=True, pad_token=None, unk_token=None)
+        self.TAGS_my_types_classification = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token=None, unk_token=None)
         self.TAGS_my_types_classification.vocab =  {"no":0, "yes":1}
         # self.ignore_index = len(self.TAGS_my_types_classification.vocab)+1
         self.ignore_index = len(self.TAGS_my_types_classification.vocab)
