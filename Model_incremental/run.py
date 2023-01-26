@@ -325,8 +325,8 @@ class Train_valid_test():
                                     if "entity_span_and_type" in args.Task_list:
                                         for class_name in list(
                                                 set(self.all_entity_span_and_type_classifier_list).difference(set(
-                                                        self.sep_corpus_file_dic[corpus_name][
-                                                            'entity_span_and_type']))):
+                                                    self.sep_corpus_file_dic[corpus_name][
+                                                        'entity_span_and_type']))):
                                             if hasattr(self.my_model.my_entity_span_and_type_classifier,
                                                        "my_classifer_{0}".format(class_name)):
                                                 no_need_classifer = getattr(
@@ -778,18 +778,20 @@ def get_valid_performance(model_path):
     corpus_file_dic, sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
         = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.bert_model, args.Test_TAC_flag)
 
-    make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list, args.All_data)
-    data_ID_2_corpus_dic = {"44444":"ADE", "11111":"CPR",  "22222":"DDI", "33333":"Twi_ADE", "55555":"TAC2019"}
+    make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
+                    args.All_data)
+    data_ID_2_corpus_dic = {"44444": "ADE", "11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "55555": "TAC2019"}
 
     bert_NER = transformers.BertModel.from_pretrained(model_path)
     tokenizer_NER = transformers.BertTokenizer.from_pretrained(model_path)
 
-    bert_RC = transformers.BertModel.from_pretrained(model_path, is_decoder=args.If_soft_share, add_cross_attention=args.If_soft_share)
+    bert_RC = transformers.BertModel.from_pretrained(model_path, is_decoder=args.If_soft_share,
+                                                     add_cross_attention=args.If_soft_share)
     tokenizer_RC = transformers.BertTokenizer.from_pretrained(model_path)
 
     entitiy_type_list = ["Drug", "Gene", "Disease"]
-    ADDITIONAL_SPECIAL_TOKENS_start = ["[Entity_only_entity_type_"+i+"]" for i in entitiy_type_list]
-    ADDITIONAL_SPECIAL_TOKENS_end = ["[/Entity_only_entity_type_"+i+"]" for i in entitiy_type_list]
+    ADDITIONAL_SPECIAL_TOKENS_start = ["[Entity_only_entity_type_" + i + "]" for i in entitiy_type_list]
+    ADDITIONAL_SPECIAL_TOKENS_end = ["[/Entity_only_entity_type_" + i + "]" for i in entitiy_type_list]
     ADDITIONAL_SPECIAL_TOKENS = ADDITIONAL_SPECIAL_TOKENS_start + ADDITIONAL_SPECIAL_TOKENS_end
 
     tokenizer_NER.add_special_tokens({"additional_special_tokens": ADDITIONAL_SPECIAL_TOKENS})
@@ -814,13 +816,12 @@ def get_valid_performance(model_path):
     my_entity_span_and_type_classifier = My_Entity_Span_And_Type_Classifier(args, device)
     my_relation_classifier = My_Relation_Classifier(args, tokenizer_RC, device)
     classifiers_dic = dict(zip(["entity_span", "entity_type", "entity_span_and_type", "relation"],
-                           [my_entity_span_classifier, my_entity_type_classifier, my_entity_span_and_type_classifier, my_relation_classifier]))
-
+                               [my_entity_span_classifier, my_entity_type_classifier,
+                                my_entity_span_and_type_classifier, my_relation_classifier]))
 
     train_iterator_list = []
     valid_iterator_list = []
     test_iterator_list = []
-
 
     # for index, (corpus_name, (entity_type_num_list, relation_num_list, file_train_valid_test_list)) in enumerate(corpus_file_dic.items()):
     corpus_name = list(corpus_file_dic.keys())[0]
@@ -828,7 +829,7 @@ def get_valid_performance(model_path):
     print("===============" + corpus_name + "===============")
 
     NER_train_iterator, NER_valid_iterator, NER_test_iterator, NER_TOEKNS_fileds, TAGS_Entity_Span_fileds_dic, \
-    TAGS_Entity_Type_fileds_dic, TAGS_Entity_Span_And_Type_fileds_dic, TAGS_sampled_entity_span_fileds_dic, TAGS_sep_entity_fileds_dic \
+        TAGS_Entity_Type_fileds_dic, TAGS_Entity_Span_And_Type_fileds_dic, TAGS_sampled_entity_span_fileds_dic, TAGS_sep_entity_fileds_dic \
         = prepared_NER_data(args.BATCH_SIZE, device, tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
 
     train_iterator_list.append(NER_train_iterator)
