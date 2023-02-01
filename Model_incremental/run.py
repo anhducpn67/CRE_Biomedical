@@ -43,7 +43,7 @@ parser.add_argument('--Test_model_file', type=str,
 parser.add_argument('--Share_embedding', action='store_true', default=False, help=[False, True])
 parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
                     help=["standard", "entitiy_type_marker", "entity_type_embedding"])
-parser.add_argument('--If_add_prototype', action='store_true', default=True)  # True False
+parser.add_argument('--If_add_prototype', action='store_true', default=False)  # True False
 parser.add_argument('--If_soft_share', action='store_true', default=False)  # True False
 parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
 
