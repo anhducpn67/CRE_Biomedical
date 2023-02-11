@@ -9,6 +9,7 @@ from torch.nn.utils.rnn import pad_sequence
 import torch.nn.functional as F
 import copy
 
+
 class My_Bert_Encoder(nn.Module):
     def __init__(self, bert, tokenizer, args, device):
         super(My_Bert_Encoder, self).__init__()
@@ -22,7 +23,7 @@ class My_Bert_Encoder(nn.Module):
         tokens_tensor = self.get_bert_input(batch_inputs)
         attention_mask = self.get_attention_mask(tokens_tensor, ignore_index)
         position_ids = self.get_position_ids(tokens_tensor)
-        common_embedding = self.bert(tokens_tensor,  output_hidden_states=True, attention_mask=attention_mask,
+        common_embedding = self.bert(tokens_tensor, output_hidden_states=True, attention_mask=attention_mask,
                                      position_ids=position_ids, encoder_hidden_states=encoder_hidden_states)
 
         last_common_embedding = common_embedding[0]
@@ -35,7 +36,8 @@ class My_Bert_Encoder(nn.Module):
         return input_tensor
 
     def get_attention_mask(self, tokens_tensor, ignore_index):
-        attention_mask = torch.where(tokens_tensor==ignore_index, torch.tensor(0., device=self.device) ,torch.tensor(1., device=self.device))
+        attention_mask = torch.where(tokens_tensor == ignore_index, torch.tensor(0., device=self.device),
+                                     torch.tensor(1., device=self.device))
         return attention_mask
 
     def get_position_ids(self, tokens_tensor):
@@ -51,8 +53,8 @@ class My_Classifer(nn.Module):
         self.ignore_index = ignore_index
         self.input_dim = input_dim
         self.output_dim = len(TAGS_fileds.vocab)
-        self.classfier_1 = nn.Linear(self.input_dim, int(self.input_dim/2), bias=False)
-        self.classfier_2 = nn.Linear(int(self.input_dim/2), int(self.output_dim), bias=False)
+        self.classfier_1 = nn.Linear(self.input_dim, int(self.input_dim / 2), bias=False)
+        self.classfier_2 = nn.Linear(int(self.input_dim / 2), int(self.output_dim), bias=False)
         # self.CRF = CRF(self.output_dim, batch_first=True)
         self.loss_weight = loss_weight
 
@@ -71,7 +73,8 @@ class My_Classifer(nn.Module):
         return crf_loss
 
     def get_ce_loss(self, res, targets):
-        CrossEntropy_loss = torch.nn.functional.cross_entropy(res.permute(0,2,1), targets, ignore_index=self.ignore_index, weight=self.loss_weight)
+        CrossEntropy_loss = torch.nn.functional.cross_entropy(res.permute(0, 2, 1), targets,
+                                                              ignore_index=self.ignore_index, weight=self.loss_weight)
         return CrossEntropy_loss
 
 
@@ -134,9 +137,10 @@ class My_Entity_Type_Classifier(My_Ensembled_Classifier):
         self.device = device
         self.args = args
 
-        self.TAGS_my_types_classification = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token=None, unk_token=None)
-        self.TAGS_my_types_classification.vocab =  {"no":0, "yes":1}
-        self.ignore_index = len(self.TAGS_my_types_classification.vocab)+1
+        self.TAGS_my_types_classification = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True,
+                                                                        pad_token=None, unk_token=None)
+        self.TAGS_my_types_classification.vocab = {"no": 0, "yes": 1}
+        self.ignore_index = len(self.TAGS_my_types_classification.vocab) + 1
 
     def create_classifers(self, TAGS_Types_fileds_dic, TAGS_sep_entity_fileds_dic):
         self.TAGS_Types_fileds_dic = TAGS_Types_fileds_dic
@@ -181,13 +185,13 @@ class My_Entity_Type_Classifier(My_Ensembled_Classifier):
         return batch_entity_vec_tensor, batch_entity  # batch_entity_token_span_list = one_batch
 
     def forward(self, batch_entity_vec, IF_CRF):
-        assert IF_CRF==False
+        assert IF_CRF is False
         loss_list = []
         pred_entity_type_list = []
         for sub_task_index, key in enumerate(self.my_entity_type_sub_task_list):
             res = self.get_classifer(key)(batch_entity_vec, IF_CRF)
             loss_list.append(res)
-            pred_entity_type_list.append(res[:,:,self.TAGS_my_types_classification.vocab["yes"]])
+            pred_entity_type_list.append(res[:, :, self.TAGS_my_types_classification.vocab["yes"]])
 
         # don't consider None type
         pred_entity_type = torch.argmax(torch.stack(pred_entity_type_list), dim=0)
@@ -249,7 +253,7 @@ class My_Relation_Classifier(nn.Module):
             self.entity_type_embedding = nn.Embedding(len(TAGS_Entity_Type_fileds_dic.keys())+1, self.args.Type_emb_num).to(self.device)
 
         if self.args.If_add_prototype or self.args.Entity_Prep_Way == "entity_type_embedding":
-            self.relation_input_dim = self.args.Word_embedding_size * 2 + self.args.Type_emb_num* 2
+            self.relation_input_dim = self.args.Word_embedding_size * 2 + self.args.Type_emb_num * 2
         else:
             self.relation_input_dim = self.args.Word_embedding_size * 2
 
@@ -275,8 +279,8 @@ class My_Relation_Classifier(nn.Module):
             sub_task_res_prob_list.append(res[0])
             sub_task_res_yes_no_index_list.append(res[1])
 
-        batch_pred_res_prob = torch.stack(sub_task_res_prob_list).permute(1,2,0)
-        batch_pred_res_yes_no_index = torch.stack(sub_task_res_yes_no_index_list).permute(1,2,0)
+        batch_pred_res_prob = torch.stack(sub_task_res_prob_list).permute(1, 2, 0)
+        batch_pred_res_yes_no_index = torch.stack(sub_task_res_yes_no_index_list).permute(1, 2, 0)
 
         yes_flag_tensor = torch.tensor(self.TAGS_my_types_classification.vocab["yes"], device=self.device)
         no_mask_tensor = batch_pred_res_yes_no_index != yes_flag_tensor
@@ -302,15 +306,13 @@ class My_Relation_Classifier(nn.Module):
                 entity_2 = torch.cat((entity_2, entity_type_rep_dic[entity_2_type].data))
             return entity_1, entity_2
 
-
         entity_span_1, entity_span_2 = entity_pair_span
         entity_1_head = entity_span_1[0]
         entity_1_tail = entity_span_1[-1]
         entity_2_head = entity_span_2[0]
         entity_2_tail = entity_span_2[-1]
 
-
-        if self.args.Entity_Prep_Way== "entitiy_type_marker":
+        if self.args.Entity_Prep_Way == "entitiy_type_marker":
             entity_1 = sentence_embedding[entity_1_head]
             entity_2 = sentence_embedding[entity_2_head]
             entity_1, entity_2 = prototype_information(entity_1, entity_2)
@@ -318,7 +320,7 @@ class My_Relation_Classifier(nn.Module):
             entity_1 = torch.sum(sentence_embedding[entity_1_head:entity_1_tail], dim=0).squeeze()
             entity_2 = torch.sum(sentence_embedding[entity_2_head:entity_2_tail], dim=0).squeeze()
             entity_1, entity_2 = prototype_information(entity_1, entity_2)
-        elif self.args.Entity_Prep_Way ==  "entity_type_embedding":
+        elif self.args.Entity_Prep_Way == "entity_type_embedding":
             entity_1 = torch.sum(sentence_embedding[entity_1_head:entity_1_tail], dim=0).squeeze()
             entity_2 = torch.sum(sentence_embedding[entity_2_head:entity_2_tail], dim=0).squeeze()
 
@@ -326,7 +328,6 @@ class My_Relation_Classifier(nn.Module):
             type_2 = dic_map_span_type[str(entity_span_2)]
             type_1_index = torch.tensor([[Entity_type_TAGS_Types_fileds_dic[type_1]]], device=self.device).long()
             type_2_index = torch.tensor([[Entity_type_TAGS_Types_fileds_dic[type_2]]], device=self.device).long()
-
 
             entity_1_type_embedding = self.entity_type_embedding(type_1_index).squeeze()
             entity_2_type_embedding = self.entity_type_embedding(type_2_index).squeeze()
@@ -356,9 +357,9 @@ class My_Relation_Classifier(nn.Module):
     def get_entity_pair_span_vec(self, batch_entity, batch_tokens, batch_entity_type, entity_type_rep_dic, bert_RC, Entity_type_TAGS_Types_fileds_dic, NER_last_embedding):
         padding_value = self.tokenizer_RC.vocab['[PAD]']
         if self.args.If_soft_share:
-            encoder_hidden_states= NER_last_embedding
+            encoder_hidden_states = NER_last_embedding
         else:
-            encoder_hidden_states=None
+            encoder_hidden_states = None
 
         if self.args.Entity_Prep_Way == "entitiy_type_marker":
             raw_batch_entity = copy.deepcopy(batch_entity)
@@ -369,15 +370,16 @@ class My_Relation_Classifier(nn.Module):
                     temp_token_list.insert(span[0], self.tokenizer_RC.convert_tokens_to_ids("[Entity_"+type+"]"))
                     temp_token_list.insert(span[-1]+2, self.tokenizer_RC.convert_tokens_to_ids("[/Entity_"+type+"]"))
 
-                    batch_entity[sent_index][entity_index].insert(0,span[0])
-                    batch_entity[sent_index][entity_index].append(span[-1]+2)
+                    batch_entity[sent_index][entity_index].insert(0, span[0])
+                    batch_entity[sent_index][entity_index].append(span[-1] + 2)
 
                     # need batch_span is in order in entity list
                     batch_entity[sent_index][entity_index+1:] = [ [j+2 for j in i] for i in batch_entity[sent_index][entity_index+1:]]
                     batch_entity[sent_index][entity_index][1:-1] = [i+1 for i in batch_entity[sent_index][entity_index][1:-1]]
                 batch_tokens_marker.append(torch.tensor(temp_token_list, device=self.device))
 
-            common_embedding = bert_RC(pad_sequence(batch_tokens_marker, batch_first=True, padding_value=padding_value), encoder_hidden_states=encoder_hidden_states)[0]
+            common_embedding = bert_RC(pad_sequence(batch_tokens_marker, batch_first=True, padding_value=padding_value),
+                                       encoder_hidden_states=encoder_hidden_states)[0]
 
             batch_entity_pair_span_list = []
             batch_entity_pair_vec_list = []
@@ -401,10 +403,12 @@ class My_Relation_Classifier(nn.Module):
                 if sent_entity_pair_span_list:
                     for entity_pair_span in sent_entity_pair_span_list:
                         if self.args.If_add_prototype:
-                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index], Entity_type_TAGS_Types_fileds_dic,
+                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index],
+                                                                    Entity_type_TAGS_Types_fileds_dic,
                                                                     dic_map_span_type, entity_type_rep_dic)
                         else:
-                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index], Entity_type_TAGS_Types_fileds_dic)
+                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index],
+                                                                    Entity_type_TAGS_Types_fileds_dic)
                         sent_entity_pair_rep_list.append(one_sent_rep)
                 else:
                     sent_entity_pair_rep_list.append(torch.tensor([0]* self.relation_input_dim).float().to(self.device))
@@ -421,7 +425,7 @@ class My_Relation_Classifier(nn.Module):
             batch_entity_pair_vec_list = []
             batch_sent_len_list = []
 
-            for sent_index, (one_sent_entity, one_sent_type)  in enumerate(zip(batch_entity, batch_entity_type)):
+            for sent_index, (one_sent_entity, one_sent_type) in enumerate(zip(batch_entity, batch_entity_type)):
                 if self.args.If_add_prototype or self.args.Entity_Prep_Way == "entity_type_embedding":
                     dic_map_span_type = {}
                     for span, type in zip(one_sent_entity, one_sent_type):
@@ -435,10 +439,12 @@ class My_Relation_Classifier(nn.Module):
                 if sent_entity_pair_span_list:
                     for entity_pair_span in sent_entity_pair_span_list:
                         if self.args.If_add_prototype or self.args.Entity_Prep_Way == "entity_type_embedding":
-                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index], Entity_type_TAGS_Types_fileds_dic,
-                                           dic_map_span_type, entity_type_rep_dic)
+                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index],
+                                                                    Entity_type_TAGS_Types_fileds_dic,
+                                                                    dic_map_span_type, entity_type_rep_dic)
                         else:
-                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index], Entity_type_TAGS_Types_fileds_dic)
+                            one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index],
+                                                                    Entity_type_TAGS_Types_fileds_dic)
                         sent_entity_pair_rep_list.append(one_sent_rep)
                 else:
                     sent_entity_pair_rep_list.append(torch.tensor([0]* self.relation_input_dim).float().to(self.device))
@@ -507,10 +513,11 @@ class My_Relation_Classifier(nn.Module):
         loss_list = []
         for sub_task_index, sub_task_batch_pred in enumerate(batch_pred_for_loss_sub_task_list):
             sub_task_batch_gold = batch_gold_for_loss_sub_task_tensor[sub_task_index]
-            ce_loss = F.cross_entropy(sub_task_batch_pred.permute(0,2,1), sub_task_batch_gold, ignore_index=self.ignore_index, weight=self.yes_no_weight, reduction='mean')
+            ce_loss = F.cross_entropy(sub_task_batch_pred.permute(0, 2, 1), sub_task_batch_gold,
+                                      ignore_index=self.ignore_index, weight=self.yes_no_weight, reduction='mean')
             # loss_list.append(ce_loss)
             loss_list.append(ce_loss)
-        return sum(loss_list)/len(loss_list)
+        return sum(loss_list) / len(loss_list)
 
     def BCE_loss(self, batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor):
         loss_list = []
@@ -523,7 +530,7 @@ class My_Relation_Classifier(nn.Module):
             bec_loss = criterion(sub_task_batch_pred, target_tensor)
             # loss_list.append(bec_loss)
             loss_list.append(bec_loss)
-        return sum(loss_list)/len(loss_list)
+        return sum(loss_list) / len(loss_list)
 
     def crossentropy_few_shot(self, batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor):
         loss_list = []
@@ -532,9 +539,10 @@ class My_Relation_Classifier(nn.Module):
             prior = torch.tensor(self.FSL_weight[sub_task_index], device=self.device)
             log_prior = torch.log(prior + 1e-8)
             y_pred = sub_task_batch_pred + 1.0 * log_prior
-            fel_ce_loss = F.cross_entropy(y_pred.permute(0,2,1), target_tensor, ignore_index=self.ignore_index, weight=self.loss_weight[sub_task_index], reduction='mean')
+            fel_ce_loss = F.cross_entropy(y_pred.permute(0, 2, 1), target_tensor, ignore_index=self.ignore_index,
+                                          weight=self.loss_weight[sub_task_index], reduction='mean')
             loss_list.append(fel_ce_loss)
-        return sum(loss_list)/len(loss_list)
+        return sum(loss_list) / len(loss_list)
 
 
 class My_Model(nn.Module):
@@ -546,7 +554,7 @@ class My_Model(nn.Module):
         if "relation" in args.Task_list:
             self.bert_RC = bert_list[1]
         self.task_list = args.Task_list
-        self.IF_CRF =  args.IF_CRF
+        self.IF_CRF = args.IF_CRF
         self.args = args
         if self.args.Share_embedding:
             # self.bert_RC.bert.embeddings.word_embeddings.weight.data = copy.deepcopy(self.bert_NER.bert.embeddings.word_embeddings.weight.data).detach()
@@ -560,16 +568,16 @@ class My_Model(nn.Module):
 
     def get_entity_type_data(self, batch, common_embedding, valid_test_flag, dic_res_one_batch, epoch):
         if valid_test_flag == 'train':
-            if epoch<5:
-                gold_input_ratio = (50-epoch)/100
-            elif epoch<10:
-                gold_input_ratio = (30-epoch)/100
-            elif epoch<15:
-                gold_input_ratio = (10-epoch)/100
+            if epoch < 5:
+                gold_input_ratio = (50 - epoch) / 100
+            elif epoch < 10:
+                gold_input_ratio = (30 - epoch) / 100
+            elif epoch < 15:
+                gold_input_ratio = (10 - epoch) / 100
             else:
                 gold_input_ratio = -1
 
-            random_ratio = np.random.uniform(0,1)
+            random_ratio = np.random.uniform(0, 1)
 
             if gold_input_ratio > random_ratio:
                 TAGS_filed = self.my_entity_type_classifier.TAGS_sep_entity_fileds_dic["sep_entity"][1]
@@ -645,27 +653,27 @@ class My_Model(nn.Module):
                 batch_entity_type.append(self.provide_dic_entity_type(one_sent_temp_list, type_dic))
 
         if valid_test_flag == 'train':
-            if epoch<5:
-                gold_input_ratio = (50-epoch)/100
-            elif epoch<10:
-                gold_input_ratio = (30-epoch)/100
-            elif epoch<15:
-                gold_input_ratio = (10-epoch)/100
+            if epoch < 5:
+                gold_input_ratio = (50 - epoch) / 100
+            elif epoch < 10:
+                gold_input_ratio = (30 - epoch) / 100
+            elif epoch < 15:
+                gold_input_ratio = (10 - epoch) / 100
             else:
                 gold_input_ratio = -1
 
-            random_ratio = np.random.uniform(0,1)
+            random_ratio = np.random.uniform(0, 1)
             # gold_input_ratio = 10
 
             if gold_input_ratio > random_ratio:
-                if self.args.Relation_input=="entity_span" or self.args.Relation_input=="entity_span_and_type":
+                if self.args.Relation_input == "entity_span" or self.args.Relation_input == "entity_span_and_type":
                     inner_realtion_data_gold_span()
                 else:
                     raise Exception("relation_input args wrong !")
             else:
-                if self.args.Relation_input=="entity_span":
+                if self.args.Relation_input == "entity_span":
                     inner_realtion_data_pred_span()
-                elif self.args.Relation_input=="entity_span_and_type":
+                elif self.args.Relation_input == "entity_span_and_type":
                     inner_realtion_data_pred_span_and_type()
                 else:
                     raise Exception("relation_input args wrong !")
@@ -680,43 +688,49 @@ class My_Model(nn.Module):
                 else:
                     raise Exception("relation_input args wrong !")
 
-        assert len(batch_entity)==len(batch_entity_type)
+        assert len(batch_entity) == len(batch_entity_type)
         return batch_entity, batch_entity_type
 
     def provide_dic_entity_type(self, entity_list, type_dic):
         entity_type_list = []
-        for entity in entity_list :
+        for entity in entity_list:
             add_flag = False
-            for k,v in type_dic.items():
+            for k, v in type_dic.items():
                 if entity in v:
                     entity_type_list.append(k)
                     add_flag = True
                     break
             if not add_flag:
                 entity_type_list.append("None")
-        assert len(entity_type_list)==len(entity_list)
+        assert len(entity_type_list) == len(entity_list)
         return entity_type_list
 
     def forward(self, batch_list, epoch, entity_type_rep_dic, valid_test_flag='train'):
-        dic_res_one_batch ={}
-        dic_loss_one_batch ={}
+        dic_res_one_batch = {}
+        dic_loss_one_batch = {}
 
         batch_NER = batch_list[0]
         RC_common_embedding, common_embedding_NER = self.bert_NER(batch_NER.tokens)
 
-        if  "entity_span" in self.task_list:
+        if "entity_span" in self.task_list:
             batch_gold_and_pred_entity_res, entity_span_batch_loss = self.entity_span_extraction(batch_NER, common_embedding_NER)
             dic_res_one_batch["entity_span"] = batch_gold_and_pred_entity_res
             dic_loss_one_batch["entity_span"] = entity_span_batch_loss
 
         if "entity_type" in self.task_list:
-            batch_entity_vec_list, batch_entity_token_span_list = self.get_entity_type_data(batch_NER, common_embedding_NER, valid_test_flag, dic_res_one_batch, epoch)
-            batch_gold_and_pred_entity_type_res, one_batch_entity_type_loss = self.entity_type_extraction(batch_NER, batch_entity_vec_list, batch_entity_token_span_list)
+            batch_entity_vec_list, batch_entity_token_span_list = self.get_entity_type_data(batch_NER,
+                                                                                            common_embedding_NER,
+                                                                                            valid_test_flag,
+                                                                                            dic_res_one_batch, epoch)
+            batch_gold_and_pred_entity_type_res, one_batch_entity_type_loss = self.entity_type_extraction(batch_NER,
+                                                                                                          batch_entity_vec_list,
+                                                                                                          batch_entity_token_span_list)
             dic_res_one_batch["entity_type"] = batch_gold_and_pred_entity_type_res
             dic_loss_one_batch["entity_type"] = one_batch_entity_type_loss
 
         if "entity_span_and_type" in self.task_list:
-            sub_task_batch_gold_and_pred_entity_span_and_type_res, batch_entity_span_and_type_loss = self.entity_span_and_type_extraction(batch_NER, common_embedding_NER)
+            sub_task_batch_gold_and_pred_entity_span_and_type_res, batch_entity_span_and_type_loss = self.entity_span_and_type_extraction(
+                batch_NER, common_embedding_NER)
             dic_res_one_batch["entity_span_and_type"] = sub_task_batch_gold_and_pred_entity_span_and_type_res
             dic_loss_one_batch["entity_span_and_type"] = batch_entity_span_and_type_loss
 
@@ -724,7 +738,10 @@ class My_Model(nn.Module):
             batch_RC = batch_list[1]
 
             batch_entity, batch_entity_type = self.get_relation_data(batch_RC, valid_test_flag, dic_res_one_batch, epoch)
-            one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch_RC, batch_entity, batch_entity_type, entity_type_rep_dic, common_embedding_NER)
+            one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch_RC, batch_entity,
+                                                                                       batch_entity_type,
+                                                                                       entity_type_rep_dic,
+                                                                                       common_embedding_NER)
             dic_res_one_batch["relation"] = one_batch_relation_res
             dic_loss_one_batch["relation"] = one_batch_relation_loss
 
@@ -750,7 +767,9 @@ class My_Model(nn.Module):
             pred_one_sent_all_sub_task_res_dic = {}
             for sub_task_index, sub_task in enumerate(self.my_entity_type_classifier.my_entity_type_sub_task_list):
                 pred_one_sent_all_sub_task_res_dic.setdefault(sub_task, [])
-                for entity_span, pred_type, entity_vec in zip(batch_entity_token_span_list[sent_index], batch_pred_raw_res_list[sent_index], batch_entity_vec_list[sent_index]):
+                for entity_span, pred_type, entity_vec in zip(batch_entity_token_span_list[sent_index],
+                                                              batch_pred_raw_res_list[sent_index],
+                                                              batch_entity_vec_list[sent_index]):
                     if pred_type == sub_task_index:
                         pred_one_sent_all_sub_task_res_dic[sub_task].append(eval(entity_span))
             batch_pred_res_list.append(pred_one_sent_all_sub_task_res_dic)
@@ -773,7 +792,8 @@ class My_Model(nn.Module):
             self.my_entity_type_classifier.TAGS_my_types_classification.vocab)
 
         one_batch_entity_type_loss = self.my_entity_type_classifier.get_ensembled_ce_loss(
-            batch_pred_for_loss_sub_task_tensor, batch_gold_for_loss_sub_task_tensor, self.my_entity_type_classifier.ignore_index, weight=None)
+            batch_pred_for_loss_sub_task_tensor, batch_gold_for_loss_sub_task_tensor,
+            self.my_entity_type_classifier.ignore_index, weight=None)
 
         batch_gold_and_pred_entity_type_res = (batch_gold_res_list, batch_pred_res_list)
         return batch_gold_and_pred_entity_type_res, one_batch_entity_type_loss
@@ -805,8 +825,10 @@ class My_Model(nn.Module):
         """ Relation extraction """
 
         batch_added_marker_entity_vec, batch_entity_pair_span_list, batch_sent_len_list = \
-            self.my_relation_classifier.get_entity_pair_span_vec(batch_entity, batch.tokens, batch_entity_type, entity_type_rep_dic,
-                                                                 self.bert_RC, self.my_entity_type_classifier.total_entity_type_to_index_dic,
+            self.my_relation_classifier.get_entity_pair_span_vec(batch_entity, batch.tokens, batch_entity_type,
+                                                                 entity_type_rep_dic,
+                                                                 self.bert_RC,
+                                                                 self.my_entity_type_classifier.total_entity_type_to_index_dic,
                                                                  NER_last_embedding)
 
         batch_pred_raw_res_list, batch_pred_for_loss_sub_task_list = self.my_relation_classifier(batch_added_marker_entity_vec, self.IF_CRF)
@@ -839,7 +861,8 @@ class My_Model(nn.Module):
 
         # if valid_test_flag=="train":
         batch_gold_for_loss_sub_task_tensor = self.my_relation_classifier.make_gold_for_loss(
-            batch_gold_res_list, batch_entity_pair_span_list, self.my_relation_classifier.TAGS_my_types_classification.vocab)
+            batch_gold_res_list, batch_entity_pair_span_list,
+            self.my_relation_classifier.TAGS_my_types_classification.vocab)
 
         if self.my_relation_classifier.args.Loss == "FSL":
             one_batch_relation_loss = self.my_relation_classifier.crossentropy_few_shot(batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor)
@@ -855,4 +878,3 @@ class My_Model(nn.Module):
         one_batch_relation_res = (batch_gold_res_list, batch_pred_res_list)
 
         return one_batch_relation_res, one_batch_relation_loss
-

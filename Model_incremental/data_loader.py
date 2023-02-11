@@ -7,28 +7,6 @@ import random
 from itertools import combinations
 
 
-class data_prefetcher():
-    def __init__(self, loader):
-        self.loader = iter(loader)
-        self.stream = torch.cuda.Stream()
-        self.preload()
-
-    def preload(self):
-        try:
-            self.next_data = next(self.loader)
-        except StopIteration:
-            self.next_input = None
-            return
-        with torch.cuda.stream(self.stream):
-            self.next_data = self.next_data.cuda(non_blocking=True)
-
-    def next(self):
-        torch.cuda.current_stream().wait_stream(self.stream)
-        data = self.next_data
-        self.preload()
-        return data
-
-
 def statistics_corpus(train_file, relation_list):
     with open(train_file, "r") as f:
         train_data = f.readlines()
@@ -38,12 +16,12 @@ def statistics_corpus(train_file, relation_list):
         num_relation_yes_dic.setdefault(relation, 0)
 
     total_relation_yes_num = 0
-    total_entitiy_yes_no_pair_num = 0
+    total_entity_yes_no_pair_num = 0
     for i in train_data:
         data_dic = eval(i)
         # entity_combine_len = len(list(combinations(data_dic["sampled_entity_span"], 2)))
         entity_combine_len = len(list(combinations(data_dic["sep_entity"], 2)))
-        total_entitiy_yes_no_pair_num += entity_combine_len
+        total_entity_yes_no_pair_num += entity_combine_len
         for k, v in data_dic.items():
             if k in relation_list:
                 num_relation_yes_dic[k] = num_relation_yes_dic[k] + len(v)
@@ -55,7 +33,7 @@ def statistics_corpus(train_file, relation_list):
 
     yes_no_relation_dic = num_relation_yes_dic.copy()
     yes_no_relation_dic.update(
-        (k, [1 - round(v / total_entitiy_yes_no_pair_num, 5), round(v / total_entitiy_yes_no_pair_num, 5)]) for k, v in
+        (k, [1 - round(v / total_entity_yes_no_pair_num, 5), round(v / total_entity_yes_no_pair_num, 5)]) for k, v in
         yes_no_relation_dic.items())
 
     return ratio_relation_dic, yes_no_relation_dic
@@ -184,7 +162,7 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
                         if "only_entity_type_" + entity_type not in one_record.keys():
                             one_record["only_entity_type_" + entity_type] = []
                         if "joint_entity_type_" + entity_type not in one_record.keys():
-                            # need improvment, if we padding in memory, it will be quicker
+                            # need improvement, if we're padding in memory, it will be quicker
                             one_record["joint_entity_type_" + entity_type] = ["O"] * sent_len
                     for relation in relation_list:
                         if "relation_" + relation not in one_record.keys():
@@ -195,47 +173,48 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
 
 
 def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, entity_type_num_list):
-    ID_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
-    TOEKNS_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
+    ID_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
+    TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
                                                 unk_token=tokenizer.unk_token_id)
 
-    TAGS_entity_span_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True,
+    TAGS_entity_span_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True,
                                                           pad_token=tokenizer.pad_token, unk_token=None)
-    TAGS_entity_span_fileds_dic = {"entity_span": ("entity_span", TAGS_entity_span_fileds)}
+    TAGS_entity_span_fields_dic = {"entity_span": ("entity_span", TAGS_entity_span_fields)}
 
-    TAGS_sep_entity_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
+    TAGS_sep_entity_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
                                                          pad_token=tokenizer.pad_token)
-    TAGS_sep_entity_fileds_dic = {"sep_entity": ("sep_entity", TAGS_sep_entity_fileds)}
+    TAGS_sep_entity_fields_dic = {"sep_entity": ("sep_entity", TAGS_sep_entity_fields)}
 
-    TAGS_sampled_entity_span_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
+    TAGS_sampled_entity_span_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
                                                                   pad_token=tokenizer.pad_token)
-    TAGS_sampled_entity_span_fileds_dic = {
-        "sampled_entity_span": ("sampled_entity_span", TAGS_sampled_entity_span_fileds)}
+    TAGS_sampled_entity_span_fields_dic = {
+        "sampled_entity_span": ("sampled_entity_span", TAGS_sampled_entity_span_fields)}
 
-    TAGS_only_Entity_Type_fileds_dic = {}
+    TAGS_only_Entity_Type_fields_dic = {}
     for entity in entity_type_num_list:
-        TAGS_only_Entity_Type_fileds_dic["only_entity_type_" + entity] = ("only_entity_type_" + entity,
+        TAGS_only_Entity_Type_fields_dic["only_entity_type_" + entity] = ("only_entity_type_" + entity,
                                                                           torchtext.legacy.data.Field(dtype=torch.long,
                                                                                                       batch_first=True,
                                                                                                       pad_token=tokenizer.pad_token,
                                                                                                       unk_token=None))
 
-    TAGS_joint_Entity_Type_fileds_dic = {}
+    TAGS_joint_Entity_Type_fields_dic = {}
     for entity in entity_type_num_list:
-        TAGS_joint_Entity_Type_fileds_dic["joint_entity_type_" + entity] = ("joint_entity_type_" + entity,
+        TAGS_joint_Entity_Type_fields_dic["joint_entity_type_" + entity] = ("joint_entity_type_" + entity,
                                                                             torchtext.legacy.data.Field(
                                                                                 dtype=torch.long, batch_first=True,
                                                                                 pad_token=tokenizer.pad_token,
                                                                                 unk_token=None))
 
-    fileds = {}
-    fileds['ID'] = ('ID', ID_fileds)
-    fileds['tokens'] = ('tokens', TOEKNS_fileds)
-    fileds['entity_span'] = ('entity_span', TAGS_entity_span_fileds)
-    fileds['sep_entity'] = ('sep_entity', TAGS_sep_entity_fileds)
-    fileds['sampled_entity_span'] = ('sampled_entity_span', TAGS_sampled_entity_span_fileds)
-    fileds.update(TAGS_only_Entity_Type_fileds_dic)
-    fileds.update(TAGS_joint_Entity_Type_fileds_dic)
+    fields = {
+        'ID': ('ID', ID_fields),
+        'tokens': ('tokens', TOKENS_fields),
+        'entity_span': ('entity_span', TAGS_entity_span_fields),
+        'sep_entity': ('sep_entity', TAGS_sep_entity_fields),
+        'sampled_entity_span': ('sampled_entity_span', TAGS_sampled_entity_span_fields)
+    }
+    fields.update(TAGS_only_Entity_Type_fields_dic)
+    fields.update(TAGS_joint_Entity_Type_fields_dic)
 
     train_file = file_train_valid_test_list[0]
     valid_file = file_train_valid_test_list[1]
@@ -243,49 +222,50 @@ def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list,
     train_set, valid_set, test_set = torchtext.legacy.data.TabularDataset.splits(path="", train=train_file,
                                                                                  validation=valid_file,
                                                                                  test=test_file, format="json",
-                                                                                 fields=fileds)
+                                                                                 fields=fields)
 
-    TAGS_entity_span_fileds.build_vocab(train_set, valid_set, test_set)
-    TAGS_sep_entity_fileds.build_vocab(train_set, valid_set, test_set)
-    TAGS_sampled_entity_span_fileds.build_vocab(train_set, valid_set, test_set)
+    TAGS_entity_span_fields.build_vocab(train_set, valid_set, test_set)
+    TAGS_sep_entity_fields.build_vocab(train_set, valid_set, test_set)
+    TAGS_sampled_entity_span_fields.build_vocab(train_set, valid_set, test_set)
 
-    for entity, filed in TAGS_only_Entity_Type_fileds_dic.items():
+    for entity, filed in TAGS_only_Entity_Type_fields_dic.items():
         filed[1].build_vocab(train_set, valid_set, test_set)
 
-    for entity, filed in TAGS_joint_Entity_Type_fileds_dic.items():
+    for entity, filed in TAGS_joint_Entity_Type_fields_dic.items():
         filed[1].build_vocab(train_set, valid_set, test_set, specials=["S", "B", "I", "E"])
 
     train_iterator, valid_iterator, test_iterator = torchtext.legacy.data.BucketIterator.splits(
         [train_set, valid_set, test_set], batch_size=BATCH_SIZE, sort=False, shuffle=True,
         repeat=False, device=device)
-    return train_iterator, valid_iterator, test_iterator, TOEKNS_fileds, \
-        TAGS_entity_span_fileds_dic, TAGS_only_Entity_Type_fileds_dic, TAGS_joint_Entity_Type_fileds_dic, \
-        TAGS_sampled_entity_span_fileds_dic, TAGS_sep_entity_fileds_dic
+    return train_iterator, valid_iterator, test_iterator, TOKENS_fields, \
+        TAGS_entity_span_fields_dic, TAGS_only_Entity_Type_fields_dic, TAGS_joint_Entity_Type_fields_dic, \
+        TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic
 
 
 def prepared_RC_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, relation_list):
-    ID_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
-    TOEKNS_fileds = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
+    ID_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
+    TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
                                                 unk_token=tokenizer.unk_token_id)
 
-    TAGS_sampled_entity_span_fileds = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
+    TAGS_sampled_entity_span_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
                                                                   pad_token=tokenizer.pad_token)
-    TAGS_sampled_entity_span_fileds_dic = {
-        "sampled_entity_span": ("sampled_entity_span", TAGS_sampled_entity_span_fileds)}
+    TAGS_sampled_entity_span_fields_dic = {
+        "sampled_entity_span": ("sampled_entity_span", TAGS_sampled_entity_span_fields)}
 
-    TAGS_Relation_pair_fileds_dic = {}
+    TAGS_Relation_pair_fields_dic = {}
     for relation in relation_list:
-        TAGS_Relation_pair_fileds_dic["relation_" + relation] = ("relation_" + relation,
+        TAGS_Relation_pair_fields_dic["relation_" + relation] = ("relation_" + relation,
                                                                  torchtext.legacy.data.Field(dtype=torch.long,
                                                                                              batch_first=True,
                                                                                              pad_token=tokenizer.pad_token,
                                                                                              unk_token=None))
 
-    fileds = {}
-    fileds['ID'] = ('ID', ID_fileds)
-    fileds['tokens'] = ('tokens', TOEKNS_fileds)
-    fileds['sampled_entity_span'] = ('sampled_entity_span', TAGS_sampled_entity_span_fileds)
-    fileds.update(TAGS_Relation_pair_fileds_dic)
+    fields = {
+        'ID': ('ID', ID_fields),
+        'tokens': ('tokens', TOKENS_fields),
+        'sampled_entity_span': ('sampled_entity_span', TAGS_sampled_entity_span_fields)
+    }
+    fields.update(TAGS_Relation_pair_fields_dic)
 
     train_file = file_train_valid_test_list[0]
     valid_file = file_train_valid_test_list[1]
@@ -293,18 +273,18 @@ def prepared_RC_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, 
     train_set, valid_set, test_set = torchtext.legacy.data.TabularDataset.splits(path="", train=train_file,
                                                                                  validation=valid_file,
                                                                                  test=test_file, format="json",
-                                                                                 fields=fileds)
+                                                                                 fields=fields)
 
-    TAGS_sampled_entity_span_fileds.build_vocab(train_set, valid_set, test_set)
+    TAGS_sampled_entity_span_fields.build_vocab(train_set, valid_set, test_set)
 
-    for relation, filed in TAGS_Relation_pair_fileds_dic.items():
+    for relation, filed in TAGS_Relation_pair_fields_dic.items():
         filed[1].build_vocab(train_set, valid_set, test_set)
 
     train_iterator, valid_iterator, test_iterator = torchtext.legacy.data.BucketIterator.splits(
         [train_set, valid_set, test_set], batch_size=BATCH_SIZE, sort=False, shuffle=True,
         repeat=False, device=device)
 
-    return train_iterator, valid_iterator, test_iterator, TOEKNS_fileds, TAGS_Relation_pair_fileds_dic, TAGS_sampled_entity_span_fileds_dic
+    return train_iterator, valid_iterator, test_iterator, TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic
 
 
 @print_execute_time
@@ -314,34 +294,3 @@ def test_load(iterator):
         print(batch.entity_span)
         print(batch.entity_span)
         break
-
-
-if __name__ == '__main__':
-    BATCH_SIZE = 100
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    from transformers import *
-
-    bert_model = "base"
-    if bert_model == "base":
-        model_path = "/home/hk/workshop_43/Data/embedding/biobert_base"
-        tokenizer = BertTokenizer.from_pretrained(model_path)
-    elif bert_model == "large":
-        model_path = "/home/hk/workshop_43/Data/embedding/biobert_large"
-        tokenizer = BertTokenizer.from_pretrained(model_path)
-
-    all_data_flag = False
-    corpus_list = ["DDI"]
-    # Task_list = ["entity_span", "entity_type", "entity_span_and_type", "relation"]
-    Task_list = ["entity_span", "entity_type", "relation"]
-    train_way = "Multi_Task_Training"
-    corpus_file_dic, sep_corpus_file_dic = get_corpus_file_dic(all_data_flag, corpus_list, train_way, Task_list)
-    print(corpus_file_dic)
-    for corpus_name, (entity_type_num_list, relation_list, file_train_valid_test_list) in corpus_file_dic.items():
-        train_iterator, valid_iterator, test_iterator, \
-            TOEKNS_fileds, TAGS_BIOES_fileds_dic, TAGS_only_Entity_Type_fileds_dic, TAGS_joint_Entity_Type_fileds_dic, \
-            TAGS_Relation_pair_fileds_dic, ratio_relation_list, yes_no_relation_list, TAGS_sampled_entity_span_fileds_dic, _ \
-            = prepared_data(4, device, tokenizer, file_train_valid_test_list, entity_type_num_list, relation_list)
-
-        a = test_load(train_iterator)
