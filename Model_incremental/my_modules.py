@@ -236,7 +236,7 @@ class My_Relation_Classifier(nn.Module):
         self.to(device)
         self.device = device
         self.TAGS_my_types_classification = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, pad_token=None, unk_token=None)
-        self.TAGS_my_types_classification.vocab =  {"no":0, "yes":1}
+        self.TAGS_my_types_classification.vocab = {"no": 0, "yes": 1}
         # self.ignore_index = len(self.TAGS_my_types_classification.vocab)+1
         self.ignore_index = len(self.TAGS_my_types_classification.vocab)
         self.args = args
@@ -287,7 +287,7 @@ class My_Relation_Classifier(nn.Module):
 
         batch_pred_res_prob_masked = torch.masked_fill(batch_pred_res_prob, no_mask_tensor, torch.tensor(-999, device=self.device))
 
-        # deal the solution of all results are no, there there is None classifer, commented down these two lines
+        # deal the solution of all results are no, there is None classifer, commented down these two lines
         pad_tensor = torch.Tensor(batch_pred_res_prob_masked.shape[0], batch_pred_res_prob_masked.shape[1], 1).fill_(-998).to(self.device)
         batch_pred_res_prob_masked = torch.cat((batch_pred_res_prob_masked, pad_tensor), 2)
 
