@@ -19,7 +19,7 @@ from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
 parser.add_argument('--All_data', action='store_true', default=False)  # True False
-parser.add_argument('--BATCH_SIZE', default=8, type=int)
+parser.add_argument('--BATCH_SIZE', default=2, type=int)
 
 parser.add_argument('--bert_model', default="base", type=str, help="base, large")
 parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
@@ -48,8 +48,8 @@ parser.add_argument('--If_soft_share', action='store_true', default=False)  # Tr
 parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=100, type=int)
-parser.add_argument('--Min_train_performance_Report', default=25, type=int)
+parser.add_argument('--EPOCH', default=0, type=int)
+parser.add_argument('--Min_train_performance_Report', default=0, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=20, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
@@ -616,7 +616,7 @@ class Train_valid_test:
 
         for task in args.Task_list:
             print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
-        # self.save_model(save_epoch)
+        self.save_model(save_epoch)
         return record_best_dic
 
     def test_fn(self, file_model_save):

@@ -11,5 +11,4 @@
 #  nohup python run.py --ID 7777 --GPU 1 --Training_way "Multi_Task_continual_Training" --Group_num 1 --Corpus_list "DDI" "CPR" "Twi_ADE" "ADE"  --All_data  >/dev/null 2>&1 &
 
 
-python run.py --ID 7777 --GPU 0 --Training_way "Multi_Task_continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Group_num 1 --Corpus_list "Twi_ADE" "ADE" "DDI" "CPR"  --All_data
-#python run.py --ID 7777 --GPU 0 --Training_way "Multi_Task_continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Group_num 40 --Corpus_list "Twi_ADE" "ADE" "DDI" "CPR"  --All_data
+python run.py --ID 7777 --GPU 0 --Training_way "Multi_Task_continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Group_num 1 --Corpus_list "Twi_ADE" "ADE" "DDI" "CPR"

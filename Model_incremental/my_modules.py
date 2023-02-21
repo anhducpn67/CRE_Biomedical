@@ -385,7 +385,7 @@ class My_Relation_Classifier(nn.Module):
             batch_entity_pair_vec_list = []
             batch_sent_len_list = []
 
-            for sent_index, (raw_one_sent_entity, one_sent_entity, one_sent_type)  in enumerate(zip(raw_batch_entity, batch_entity, batch_entity_type)):
+            for sent_index, (raw_one_sent_entity, one_sent_entity, one_sent_type) in enumerate(zip(raw_batch_entity, batch_entity, batch_entity_type)):
                 if self.args.If_add_prototype:
                     dic_map_span_type = {}
                     for span, type in zip(one_sent_entity, one_sent_type):
@@ -843,7 +843,7 @@ class My_Model(nn.Module):
                     entity_pair_span = self.my_relation_classifier.TAGS_Types_fileds_dic[sub_task][1].vocab.itos[entity_pair]
                     if entity_pair_span != "[PAD]":
                         temp_pair = sorted(eval(entity_pair_span))
-                        if (temp_pair not in gold_one_sent_all_sub_task_res_dic[sub_task]):
+                        if temp_pair not in gold_one_sent_all_sub_task_res_dic[sub_task]:
                             gold_one_sent_all_sub_task_res_dic[sub_task].append(temp_pair)
 
             batch_gold_res_list.append(gold_one_sent_all_sub_task_res_dic)
