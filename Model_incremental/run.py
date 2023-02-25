@@ -19,15 +19,15 @@ from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
 parser.add_argument('--All_data', action='store_true', default=False)  # True False
-parser.add_argument('--BATCH_SIZE', default=2, type=int)
+parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
 parser.add_argument('--bert_model', default="base", type=str, help="base, large")
 parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
                     help=["entity_span", "entity_type", "entity_span_and_type", "relation"])
 parser.add_argument('--Task_weights_dic', default="{'entity_span':0.4, 'entity_type':0.2,  'relation':0.4}", type=str)
 
-parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE"], nargs='+',
-                    help=["DDI", "Twi_ADE", "ADE", "CPR"])
+parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
+                    help=["DDI", "Twi_ADE", "ADE", "CPR", "PPI"])
 parser.add_argument('--Random_ratio', default=1, type=float, help=">1 means mask all data from other corpus")
 parser.add_argument('--Group_num', default=40, type=int)
 parser.add_argument('--Training_way', default="Multi_Task_Training", type=str,
@@ -48,8 +48,8 @@ parser.add_argument('--If_soft_share', action='store_true', default=False)  # Tr
 parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=0, type=int)
-parser.add_argument('--Min_train_performance_Report', default=0, type=int)
+parser.add_argument('--EPOCH', default=100, type=int)
+parser.add_argument('--Min_train_performance_Report', default=25, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=20, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
@@ -180,7 +180,7 @@ class Train_valid_test:
         self.all_entity_span_and_type_classifier_list = ["joint_entity_type_" + i for i in ['Gene', 'Drug', 'Disease']]
         self.all_relation_classifier_list = ["relation_" + i for i in
                                              ['Drug_Disease_interaction', 'Drug_Gene_interaction',
-                                              'Drug_Drug_interaction']]
+                                              'Drug_Drug_interaction', 'Gene_Gene_interaction']]
         self.false_flag = False
 
         self.optimizer_bert_NER = OPTIMIZER(
@@ -777,7 +777,7 @@ def get_valid_performance(model_path):
 
     make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
                     args.All_data)
-    data_ID_2_corpus_dic = {"44444": "ADE", "11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "55555": "TAC2019"}
+    data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE", "55555": "PPI"}
 
     bert_NER = transformers.BertModel.from_pretrained(model_path)
     tokenizer_NER = transformers.BertTokenizer.from_pretrained(model_path)

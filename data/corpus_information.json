@@ -18,5 +18,10 @@
     "file_list": ["Twi_ADE_train_base_model_data.json", "Twi_ADE_valid_base_model_data.json", "Twi_ADE_test_base_model_data.json"],
     "entity_type_list": ["Drug", "Disease"],
     "relation_list": ["Drug_Disease_interaction"]
+  },
+  "PPI": {
+    "file_list": ["PPI_train_base_model_data.json", "PPI_valid_base_model_data.json", "PPI_test_base_model_data.json"],
+    "entity_type_list": ["Gene"],
+    "relation_list": ["Gene_Gene_interaction"]
   }
 }

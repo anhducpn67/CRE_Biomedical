@@ -481,34 +481,6 @@ class My_Relation_Classifier(nn.Module):
 
         return gold_for_loss_sub_task_tensor
 
-    # def get_ensembled_ce_loss(self, batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor):
-    #     pred_tensor = torch.stack(batch_pred_for_loss_sub_task_list).permute(1, 3, 2, 0)
-    #     target_tensor = batch_gold_for_loss_sub_task_tensor.permute(1, 2, 0)
-    #     ce_loss = F.cross_entropy(pred_tensor, target_tensor, ignore_index=self.ignore_index, weight=self.loss_weight)
-    #     return ce_loss
-    #
-    # def BCE_loss(self, batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor):
-    #     pred_tensor = torch.stack(batch_pred_for_loss_sub_task_list)
-    #     target_tensor = torch.where(batch_gold_for_loss_sub_task_tensor==3, torch.tensor(0, device=self.device), batch_gold_for_loss_sub_task_tensor)
-    #     target_tensor = torch.zeros(pred_tensor.shape, device=self.device).scatter_(3, target_tensor.unsqueeze(3), 1)
-    #
-    #     criterion = nn.BCEWithLogitsLoss(pos_weight=self.loss_weight)
-    #     bec_loss = criterion(pred_tensor, target_tensor)
-    #     return bec_loss
-    #
-    # def crossentropy_few_shot(self, batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor):
-    #     """
-    #     y_pred don't need softmax
-    #     """
-    #     pred_tensor = torch.stack(batch_pred_for_loss_sub_task_list).permute(1, 2, 0, 3)
-    #     target_tensor = batch_gold_for_loss_sub_task_tensor.permute(1, 0, 2)
-    #     prior = torch.tensor(self.yes_no_relation_list, device=self.device)
-    #
-    #     log_prior = torch.log(prior + 1e-8)
-    #     y_pred = pred_tensor + 1.0 * log_prior
-    #     fel_ce_loss = F.cross_entropy(y_pred.permute(0,3,2,1), target_tensor, ignore_index=self.ignore_index, weight=self.loss_weight)
-    #     return fel_ce_loss
-
     def get_ensembled_ce_loss(self, batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor):
         loss_list = []
         for sub_task_index, sub_task_batch_pred in enumerate(batch_pred_for_loss_sub_task_list):
@@ -580,6 +552,7 @@ class My_Model(nn.Module):
             random_ratio = np.random.uniform(0, 1)
 
             if gold_input_ratio > random_ratio:
+                # Get TAGS_sep_entity_fileds_dic instead of TAGS_Types_fileds_dic
                 TAGS_filed = self.my_entity_type_classifier.TAGS_sep_entity_fileds_dic["sep_entity"][1]
                 batch_entity = get_entity_res_segment(batch.sep_entity, TAGS_filed, need_sep_flag=False)
             else:
@@ -710,6 +683,7 @@ class My_Model(nn.Module):
         dic_loss_one_batch = {}
 
         batch_NER = batch_list[0]
+        # RC_common_embedding == common_embedding_NER if Pick_lay_num=-1
         RC_common_embedding, common_embedding_NER = self.bert_NER(batch_NER.tokens)
 
         if "entity_span" in self.task_list:
