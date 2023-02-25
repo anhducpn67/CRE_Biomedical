@@ -589,7 +589,7 @@ class Train_valid_test:
                     maxF = dic_valid_PRF[args.Task_list[-1]][2]
                     record_best_dic = dic_valid_PRF
                     save_epoch = epoch
-                    # self.save_model(save_epoch)
+                    self.save_model(save_epoch)
 
                     # record_pred_str_res(self.my_model.task_list, file_result, dic_batches_valid_res, average_num,
                     #                     self.tokenizer_list[0].convert_ids_to_tokens, self.my_model.classifiers_dic,
