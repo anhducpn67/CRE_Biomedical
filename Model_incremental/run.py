@@ -128,7 +128,7 @@ if args.bert_model == "large":
     args.Word_embedding_size = 1024
     args.Hidden_Size_Common_Encoder = args.Word_embedding_size
 elif args.bert_model == "base":
-    args.model_path = "dmis-lab/biobert-v1.1"
+    args.model_path = "dmis-lab/biobert-base-cased-v1.1"
     args.Word_embedding_size = 768
     args.Hidden_Size_Common_Encoder = args.Word_embedding_size
 
