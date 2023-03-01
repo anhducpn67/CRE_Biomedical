@@ -883,6 +883,11 @@ if __name__ == "__main__":
 
     print("GPU:", args.GPU)
     print("Bert:", args.bert_model)
+    print("Batch size: ", args.BATCH_SIZE)
+    print("LR_max_bert: ", args.LR_max_bert)
+    print("LR_max_entity_span: ", args.LR_max_entity_span)
+    print("LR_max_entity_type: ", args.LR_max_entity_type)
+    print("LR_max_relation: ", args.LR_max_relation)
     print("All_data:", args.All_data)
     print("Corpus_list:", args.Corpus_list)
     print("Task_list:", args.Task_list)
