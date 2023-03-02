@@ -891,6 +891,9 @@ if __name__ == "__main__":
     print("All_data:", args.All_data)
     print("Corpus_list:", args.Corpus_list)
     print("Task_list:", args.Task_list)
+    print("If_add_prototype:", args.If_add_prototype)
+    print("Entity_Prep_Way:", args.Entity_Prep_Way)
+    print("If_soft_share:", args.If_soft_share)
     print("Task_weights_dic:", end="")
     for task in args.Task_list:
         print(args.Task_weights_dic[task], end=" ")
