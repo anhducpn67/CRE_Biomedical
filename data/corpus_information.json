@@ -23,5 +23,10 @@
     "file_list": ["PPI_train_base_model_data.json", "PPI_valid_base_model_data.json", "PPI_test_base_model_data.json"],
     "entity_type_list": ["Gene"],
     "relation_list": ["Gene_Gene_interaction"]
+  },
+  "BioInfer": {
+    "file_list": ["BioInfer_train_base_model_data.json", "BioInfer_valid_base_model_data.json", "BioInfer_test_base_model_data.json"],
+    "entity_type_list": ["Gene"],
+    "relation_list": ["Gene_Gene_interaction"]
   }
 }

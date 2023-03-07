@@ -19,12 +19,12 @@ from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
 parser.add_argument('--All_data', action='store_true', default=False)  # True False
-parser.add_argument('--BATCH_SIZE', default=8, type=int)
+parser.add_argument('--BATCH_SIZE', default=16, type=int)
 
 parser.add_argument('--bert_model', default="base", type=str, help="base, large")
 parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
                     help=["entity_span", "entity_type", "entity_span_and_type", "relation"])
-parser.add_argument('--Task_weights_dic', default="{'entity_span':0.4, 'entity_type':0.2,  'relation':0.4}", type=str)
+parser.add_argument('--Task_weights_dic', default="{'entity_span':0.4, 'entity_type':0.25,  'relation':0.35}", type=str)
 
 parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
                     help=["DDI", "Twi_ADE", "ADE", "CPR", "PPI"])
@@ -38,7 +38,7 @@ parser.add_argument('--Inner_test_TAC_flag', action='store_true', default=False,
 parser.add_argument('--Test_Corpus', default=["TAC2019"], nargs='+',
                     help=["ADE", "Twi_ADE", "DDI", "CPR", "TAC2019"])  # TAC
 parser.add_argument('--Test_model_file', type=str,
-                    default="../result/save_model/Model_['--ID', '33333', '--GPU', '2', '--All_data', '--Entity_Prep_Way', 'entitiy_type_marker']")
+                    default="../result/save_model/Model_['--ID', '66666', '--GPU', '0', '--Training_way', 'Multi_Task_Training', '--Entity_Prep_Way', 'entitiy_type_marker', '--Group_num', '1', '--Corpus_list', 'BioInfer', '--All_data']")
 
 parser.add_argument('--Share_embedding', action='store_true', default=False, help=[False, True])
 parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
@@ -49,7 +49,7 @@ parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last 
 
 parser.add_argument('--Average_Time', default=1, type=int)
 parser.add_argument('--EPOCH', default=100, type=int)
-parser.add_argument('--Min_train_performance_Report', default=25, type=int)
+parser.add_argument('--Min_train_performance_Report', default=1, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=20, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
@@ -777,7 +777,7 @@ def get_valid_performance(model_path):
 
     make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
                     args.All_data)
-    data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE", "55555": "PPI"}
+    data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE", "55555": "PPI", "66666": "BioInfer"}
 
     bert_NER = transformers.BertModel.from_pretrained(model_path)
     tokenizer_NER = transformers.BertTokenizer.from_pretrained(model_path)
