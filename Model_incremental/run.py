@@ -19,7 +19,7 @@ from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
 parser.add_argument('--All_data', action='store_true', default=False)  # True False
-parser.add_argument('--BATCH_SIZE', default=16, type=int)
+parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
 parser.add_argument('--bert_model', default="base", type=str, help="base, large")
 parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
@@ -619,12 +619,12 @@ class Train_valid_test:
         self.save_model(save_epoch)
         return record_best_dic
 
-    def test_fn(self, file_model_save):
+    def test_fn(self, file_model_save_path):
 
         if not args.Inner_test_TAC_flag:
-            print(file_model_save)
+            print(file_model_save_path)
             print("Loading Model...")
-            checkpoint = torch.load(file_model_save)
+            checkpoint = torch.load(file_model_save_path)
             self.my_model.load_state_dict(checkpoint['my_model'])
             self.entity_type_rep_dic = checkpoint['epoch']
             print("Loading success !")
@@ -830,7 +830,7 @@ def get_valid_performance(model_path):
         = prepared_NER_data(args.BATCH_SIZE, device, tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
 
     train_iterator_list.append(NER_train_iterator)
-    valid_iterator_list.append(NER_test_iterator)
+    valid_iterator_list.append(NER_valid_iterator)
     test_iterator_list.append(NER_test_iterator)
 
     my_entity_span_classifier.create_classifers(TAGS_Entity_Span_fields_dic)
@@ -843,7 +843,7 @@ def get_valid_performance(model_path):
         my_relation_classifier.create_classifers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_Entity_Type_fields_dic)
 
         train_iterator_list.append(RC_train_iterator)
-        valid_iterator_list.append(RC_test_iterator)
+        valid_iterator_list.append(RC_valid_iterator)
         test_iterator_list.append(RC_test_iterator)
 
     my_model.add_classifers(classifiers_dic, args.Task_list)
@@ -858,8 +858,10 @@ def get_valid_performance(model_path):
         print("==========================" + str(i) + "=================================================")
         if not args.Test_flag:
             dic_res_PRF = my_train_valid_test.train_valid_fn(i)
+            my_train_valid_test.test_fn(file_model_save)
         elif args.Test_flag and args.Inner_test_TAC_flag:
             dic_res_PRF = my_train_valid_test.train_valid_fn(i)
+            my_train_valid_test.test_fn(file_model_save)
         elif args.Test_flag and not args.Inner_test_TAC_flag:
             dic_res_PRF = my_train_valid_test.test_fn(args.Test_model_file)
         else:
