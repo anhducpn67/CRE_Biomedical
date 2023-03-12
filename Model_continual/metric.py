@@ -30,13 +30,16 @@ def switch_dim(one_batch_res_list, one_batch_gold_list, Relation_Type_list, batc
         new_one_batch_gold_list.append(temp_batch_list)
     return new_one_batch_res_list, new_one_batch_gold_list
 
+
 def seg_segment(old_one_sent_gold, vocab, sub_num):
-    if len(old_one_sent_gold) >1:
-        new_one_sent_gold_list = [list(g) for k, g in groupby(old_one_sent_gold, lambda x:x==vocab.stoi["[seg_tag]"]) if not k]
+    if len(old_one_sent_gold) > 1:
+        new_one_sent_gold_list = [list(g) for k, g in groupby(old_one_sent_gold, lambda x: x == vocab.stoi["[seg_tag]"])
+                                  if not k]
     else:
-        new_one_sent_gold_list = torch.Tensor(old_one_sent_gold).repeat(sub_num,1).tolist()
+        new_one_sent_gold_list = torch.Tensor(old_one_sent_gold).repeat(sub_num, 1).tolist()
 
     return new_one_sent_gold_list
+
 
 def get_sent_len(token_list, vocab):
     sentence_length = 0
@@ -48,6 +51,7 @@ def get_sent_len(token_list, vocab):
         print("!")
         pass
     return sentence_length
+
 
 def get_triple_O_seg(targets_sentence):
     """ this Function ask the last tag must be "O"
@@ -65,24 +69,25 @@ def get_triple_O_seg(targets_sentence):
             # if gold_list[-1][1].split("_")[-1]=="E":
             temp_list = targets_sentence[index].split("_")
             if len(temp_list) == 2:
-                add_str = temp_list[0]+"_"+temp_list[1]
+                add_str = temp_list[0] + "_" + temp_list[1]
             else:
                 add_str = targets_sentence[index]
 
             gold_list.append((index, add_str))
 
-            if add_str[-1]=="E" or add_str[-1]=="S":
+            if add_str[-1] == "E" or add_str[-1] == "S":
                 total_list.append(gold_list)
                 gold_list = []
 
-            if index == len(targets_sentence)-1:
-                if len(gold_list)>0:
+            if index == len(targets_sentence) - 1:
+                if len(gold_list) > 0:
                     total_list.append(gold_list)
 
     return total_list
 
+
 def formatted_outpus(triple_list_list):
-    if len(triple_list_list)==0:
+    if len(triple_list_list) == 0:
         return []
 
     new_triple_list_list = []
@@ -107,6 +112,7 @@ def formatted_outpus(triple_list_list):
                 new_triple_list_list.append(triple_list)
 
     return new_triple_list_list
+
 
 def improved_result(triple_list_list):
     new_triple_list_list = []
@@ -145,6 +151,7 @@ def improved_result(triple_list_list):
 
     return new_triple_list_list
 
+
 def combine_all_class_for_total_PRF(each_TP_FN_FP):
     total_TP = 0
     total_FN = 0
@@ -158,11 +165,13 @@ def combine_all_class_for_total_PRF(each_TP_FN_FP):
 
     return micro_P, micro_R, micro_F
 
+
 def return_PRF(TP, FN, FP):
     P = TP / (TP + FP) if (TP + FP) != 0 else 0
     R = TP / (TP + FN) if (TP + FN) != 0 else 0
     F = 2 * P * R / (P + R) if (P + R) != 0 else 0
-    return P*100, R*100, F*100
+    return P * 100, R * 100, F * 100
+
 
 def add_new_relation(total_return_kin_ship, new_dic):
     for key, value in new_dic.items():
@@ -173,6 +182,7 @@ def add_new_relation(total_return_kin_ship, new_dic):
         else:
             total_return_kin_ship[key] = value
     return total_return_kin_ship
+
 
 def accumulated_each_class_TP_FN_FP(pred, tags, task_key, each_entity_TP_FN_FP):
     """ task_key = both sub_task( drug, chemical, ... ) and task(span,type,relation) is ok
@@ -192,20 +202,22 @@ def accumulated_each_class_TP_FN_FP(pred, tags, task_key, each_entity_TP_FN_FP):
 
     FP = len(pred) - TP
     FN = len(tags) - TP
-    assert TP>=0
-    assert FN>=0
-    assert FP>=0
+    assert TP >= 0
+    assert FN >= 0
+    assert FP >= 0
 
     new_dic_performance[task_key] = (TP, FN, FP)
     added_each_TP_FN_FP = add_new_relation(each_entity_TP_FN_FP, new_dic_performance)
 
     return added_each_TP_FN_FP
 
+
 def get_each_class_P_R_F(accumulated_each_class_total_TP_FN_FP):
     dic_sub_task_P_R_F = {}
-    for sub_task, (TP,FN,FP) in accumulated_each_class_total_TP_FN_FP.items():
-        dic_sub_task_P_R_F[sub_task] = return_PRF(TP,FN,FP)
+    for sub_task, (TP, FN, FP) in accumulated_each_class_total_TP_FN_FP.items():
+        dic_sub_task_P_R_F[sub_task] = return_PRF(TP, FN, FP)
     return dic_sub_task_P_R_F
+
 
 def get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_task_corpus, corpus_list):
     """
@@ -215,15 +227,15 @@ def get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_t
 
     dic_corpus_total_TP_FN_FP = {}
     for corpus in corpus_list:
-        dic_corpus_total_TP_FN_FP.setdefault(corpus, [0,0,0])
+        dic_corpus_total_TP_FN_FP.setdefault(corpus, [0, 0, 0])
 
-    for sub_task, (TP,FN,FP) in accumulated_each_class_total_TP_FN_FP.items():
+    for sub_task, (TP, FN, FP) in accumulated_each_class_total_TP_FN_FP.items():
         corpus_list = dic_sub_task_corpus[sub_task]
 
         for corpus in corpus_list:
-            dic_corpus_total_TP_FN_FP[corpus][0] = dic_corpus_total_TP_FN_FP[corpus][0] +TP
-            dic_corpus_total_TP_FN_FP[corpus][1] = dic_corpus_total_TP_FN_FP[corpus][1] +FN
-            dic_corpus_total_TP_FN_FP[corpus][2] = dic_corpus_total_TP_FN_FP[corpus][2] +FP
+            dic_corpus_total_TP_FN_FP[corpus][0] = dic_corpus_total_TP_FN_FP[corpus][0] + TP
+            dic_corpus_total_TP_FN_FP[corpus][1] = dic_corpus_total_TP_FN_FP[corpus][1] + FN
+            dic_corpus_total_TP_FN_FP[corpus][2] = dic_corpus_total_TP_FN_FP[corpus][2] + FP
 
     dic_corpus_task_micro_P_R_F = {}
     for corpus, TP_FN_FP_list in dic_corpus_total_TP_FN_FP.items():
@@ -231,9 +243,10 @@ def get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_t
 
     return dic_corpus_task_micro_P_R_F
 
+
 def report_entity_span_PRF(list_batches_res, TAGS_fileds_list, dic_sub_task_corpus, improve_flag, corpus_list):
     task_key = "entity_span"
-    entity_span_TP_FN_FP = {"entity_span": [0,0,0]}
+    entity_span_TP_FN_FP = {"entity_span": [0, 0, 0]}
     epoch_level_TP = 0
     epoch_level_FN = 0
     epoch_level_FP = 0
@@ -249,7 +262,8 @@ def report_entity_span_PRF(list_batches_res, TAGS_fileds_list, dic_sub_task_corp
             pred_list = get_triple_O_seg(pred_sent)
             tags_list = formatted_outpus(tags_list)
             pred_list = formatted_outpus(pred_list)
-            each_classifier_TP_FN_FP = accumulated_each_class_TP_FN_FP(pred_list, tags_list, task_key, entity_span_TP_FN_FP)
+            each_classifier_TP_FN_FP = accumulated_each_class_TP_FN_FP(pred_list, tags_list, task_key,
+                                                                       entity_span_TP_FN_FP)
             TP, FN, FP = each_classifier_TP_FN_FP[task_key]
             epoch_level_TP += TP
             epoch_level_FN += FN
@@ -257,8 +271,10 @@ def report_entity_span_PRF(list_batches_res, TAGS_fileds_list, dic_sub_task_corp
         dic_total_res[task_key] = (epoch_level_TP, epoch_level_FN, epoch_level_FP)
 
     epoch_micro_P, epoch_micro_R, epoch_micro_F = combine_all_class_for_total_PRF(dic_total_res)
-    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(each_classifier_TP_FN_FP, dic_sub_task_corpus, corpus_list)
+    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(each_classifier_TP_FN_FP, dic_sub_task_corpus,
+                                                              corpus_list)
     return epoch_micro_P, epoch_micro_R, epoch_micro_F, dic_corpus_task_micro_P_R_F, dic_total_res
+
 
 def report_entity_type_PRF(list_batches_res, TAGS_fileds_list, dic_sub_task_corpus, corpus_list):
     sub_task_list = list(TAGS_fileds_list.keys())
@@ -268,13 +284,18 @@ def report_entity_type_PRF(list_batches_res, TAGS_fileds_list, dic_sub_task_corp
         for one_sent_gold_dic, one_sent_pred_dic in zip(one_batch_gold_dic, one_batch_pred_dic):
             for sub_task in sub_task_list:
                 if sub_task in dic_sub_task_corpus.keys():
-                    accumulated_each_class_total_TP_FN_FP = accumulated_each_class_TP_FN_FP(one_sent_pred_dic[sub_task], one_sent_gold_dic[sub_task], sub_task, accumulated_each_class_total_TP_FN_FP)
+                    accumulated_each_class_total_TP_FN_FP = accumulated_each_class_TP_FN_FP(one_sent_pred_dic[sub_task],
+                                                                                            one_sent_gold_dic[sub_task],
+                                                                                            sub_task,
+                                                                                            accumulated_each_class_total_TP_FN_FP)
 
     epoch_micro_P, epoch_micro_R, epoch_micro_F = combine_all_class_for_total_PRF(accumulated_each_class_total_TP_FN_FP)
     dic_sub_task_P_R_F = get_each_class_P_R_F(accumulated_each_class_total_TP_FN_FP)
-    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_task_corpus, corpus_list)
+    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP,
+                                                              dic_sub_task_corpus, corpus_list)
 
     return epoch_micro_P, epoch_micro_R, epoch_micro_F, dic_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, accumulated_each_class_total_TP_FN_FP
+
 
 def report_entity_span_and_type_PRF(list_batches_res, TAGS_fileds_list, dic_sub_task_corpus, improve_flag, corpus_list):
     accumulated_each_class_total_TP_FN_FP = {}
@@ -290,13 +311,17 @@ def report_entity_span_and_type_PRF(list_batches_res, TAGS_fileds_list, dic_sub_
                     targets_sentence = [vocab.itos[int(i)] for i in one_sent_gold[:sentence_length]]
                     tags_list = get_triple_O_seg(targets_sentence)
                     pred_list = improved_result(one_sent_pred) if improve_flag else one_sent_pred
-                    accumulated_each_class_total_TP_FN_FP = accumulated_each_class_TP_FN_FP(pred_list, tags_list, sub_task, accumulated_each_class_total_TP_FN_FP)
+                    accumulated_each_class_total_TP_FN_FP = accumulated_each_class_TP_FN_FP(pred_list, tags_list,
+                                                                                            sub_task,
+                                                                                            accumulated_each_class_total_TP_FN_FP)
 
     epoch_micro_P, epoch_micro_R, epoch_micro_F = combine_all_class_for_total_PRF(accumulated_each_class_total_TP_FN_FP)
     dic_sub_task_P_R_F = get_each_class_P_R_F(accumulated_each_class_total_TP_FN_FP)
-    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_task_corpus, corpus_list)
+    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP,
+                                                              dic_sub_task_corpus, corpus_list)
 
     return epoch_micro_P, epoch_micro_R, epoch_micro_F, dic_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, accumulated_each_class_total_TP_FN_FP
+
 
 def report_relation_PRF(list_batches_res, TAGS_Relation_fileds_dic, dic_sub_task_corpus, corpus_list):
     sub_task_list = list(TAGS_Relation_fileds_dic.keys())
@@ -306,20 +331,25 @@ def report_relation_PRF(list_batches_res, TAGS_Relation_fileds_dic, dic_sub_task
         for one_sent_gold_dic, one_sent_pred_dic in zip(one_batch_gold_list, one_batch_pred_list):
             for sub_task in sub_task_list:
                 if sub_task in dic_sub_task_corpus.keys():
-                    accumulated_each_class_total_TP_FN_FP = accumulated_each_class_TP_FN_FP(one_sent_pred_dic[sub_task], one_sent_gold_dic[sub_task],
-                                                                                            sub_task, accumulated_each_class_total_TP_FN_FP)
+                    accumulated_each_class_total_TP_FN_FP = accumulated_each_class_TP_FN_FP(one_sent_pred_dic[sub_task],
+                                                                                            one_sent_gold_dic[sub_task],
+                                                                                            sub_task,
+                                                                                            accumulated_each_class_total_TP_FN_FP)
 
     dic_sub_task_P_R_F = get_each_class_P_R_F(accumulated_each_class_total_TP_FN_FP)
     epoch_micro_P, epoch_micro_R, epoch_micro_F = combine_all_class_for_total_PRF(accumulated_each_class_total_TP_FN_FP)
-    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_task_corpus, corpus_list)
+    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP,
+                                                              dic_sub_task_corpus, corpus_list)
 
-    if epoch_micro_P>100 or epoch_micro_R>100 or epoch_micro_F>100:
+    if epoch_micro_P > 100 or epoch_micro_R > 100 or epoch_micro_F > 100:
         print(dic_sub_task_P_R_F)
         print(accumulated_each_class_total_TP_FN_FP)
         print(11)
     return epoch_micro_P, epoch_micro_R, epoch_micro_F, dic_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, accumulated_each_class_total_TP_FN_FP
 
-def report_performance(epoch, task_list, dic_loss, dic_batches_res, classifiers_dic, sep_corpus_file_dic, improve_flag, valid_flag):
+
+def report_performance(corpus_name, epoch, task_list, dic_loss, dic_batches_res, classifiers_dic, sep_corpus_file_dic, improve_flag,
+                       valid_flag):
     """
     :param dic_batches_res:  {"BIOES": [(one_batch_pred_sub_res, [batch.entity_span] ], "entity_type":[], "relation":[]}, len=batch_size
     """
@@ -339,39 +369,46 @@ def report_performance(epoch, task_list, dic_loss, dic_batches_res, classifiers_
                 dic_sub_task_corpus.setdefault(sub_task, [])
                 dic_sub_task_corpus[sub_task].append(corpus)
 
-    if valid_flag=="train":
+    if valid_flag == "train":
         print()
-        print('Epoch: %1d, train average_loss: %2f' %(epoch, dic_loss["average"]))
+        print(corpus_name)
+        print('Epoch: %1d, train average_loss: %2f' % (epoch, dic_loss["average"]))
     else:
+        print(corpus_name)
         print("  validing ... ")
 
     if "entity_span" in task_list:
         entity_span_epoch_micro_P, \
-        entity_span_epoch_micro_R, \
-        entity_span_epoch_micro_F, \
-        dic_corpus_task_micro_P_R_F_entity_span, \
-        accumulated_each_class_total_TP_FN_FP = report_entity_span_PRF(
-            dic_batches_res["entity_span"], classifiers_dic["entity_span"].TAGS_Types_fileds_dic, dic_sub_task_corpus, improve_flag, corpus_list)
+            entity_span_epoch_micro_R, \
+            entity_span_epoch_micro_F, \
+            dic_corpus_task_micro_P_R_F_entity_span, \
+            accumulated_each_class_total_TP_FN_FP = report_entity_span_PRF(
+            dic_batches_res["entity_span"], classifiers_dic["entity_span"].TAGS_Types_fileds_dic, dic_sub_task_corpus,
+            improve_flag, corpus_list)
 
         print('          entity_span : Loss: %.3f, P: %.3f, R: %.3f, F: %.3f '
-              %(dic_loss["entity_span"], entity_span_epoch_micro_P, entity_span_epoch_micro_R, entity_span_epoch_micro_F))
+              % (
+              dic_loss["entity_span"], entity_span_epoch_micro_P, entity_span_epoch_micro_R, entity_span_epoch_micro_F))
         dic_PRF["entity_span"] = entity_span_epoch_micro_P, entity_span_epoch_micro_R, entity_span_epoch_micro_F
-        dic_total_sub_task_P_R_F["entity_span"] = {"entity_span":(entity_span_epoch_micro_P, entity_span_epoch_micro_R, entity_span_epoch_micro_F)}
+        dic_total_sub_task_P_R_F["entity_span"] = {
+            "entity_span": (entity_span_epoch_micro_P, entity_span_epoch_micro_R, entity_span_epoch_micro_F)}
         for corpus, entity_span_PRF in dic_corpus_task_micro_P_R_F_entity_span.items():
             dic_corpus_task_micro_P_R_F[corpus]["entity_span"] = entity_span_PRF
         dic_TP_FN_FP["entity_span"] = accumulated_each_class_total_TP_FN_FP
 
     if "entity_type" in task_list:
         entity_type_epoch_micro_P, \
-        entity_type_epoch_micro_R, \
-        entity_type_epoch_micro_F, \
-        dic_sub_task_P_R_F, \
-        dic_corpus_task_micro_P_R_F_entity_type, \
-        accumulated_each_class_total_TP_FN_FP = report_entity_type_PRF(dic_batches_res["entity_type"],
-                                                                       classifiers_dic["entity_type"].TAGS_Types_fileds_dic,
-                                                                       dic_sub_task_corpus, corpus_list)
+            entity_type_epoch_micro_R, \
+            entity_type_epoch_micro_F, \
+            dic_sub_task_P_R_F, \
+            dic_corpus_task_micro_P_R_F_entity_type, \
+            accumulated_each_class_total_TP_FN_FP = report_entity_type_PRF(dic_batches_res["entity_type"],
+                                                                           classifiers_dic[
+                                                                               "entity_type"].TAGS_Types_fileds_dic,
+                                                                           dic_sub_task_corpus, corpus_list)
         print('          entity_type : Loss: %.3f, P: %.3f, R: %.3f, F: %.3f'
-              %(dic_loss["entity_type"], entity_type_epoch_micro_P, entity_type_epoch_micro_R, entity_type_epoch_micro_F))
+              % (
+              dic_loss["entity_type"], entity_type_epoch_micro_P, entity_type_epoch_micro_R, entity_type_epoch_micro_F))
         dic_PRF["entity_type"] = entity_type_epoch_micro_P, entity_type_epoch_micro_R, entity_type_epoch_micro_F
         dic_total_sub_task_P_R_F["entity_type"] = dic_sub_task_P_R_F
         for corpus, entity_span_PRF in dic_corpus_task_micro_P_R_F_entity_type.items():
@@ -380,16 +417,20 @@ def report_performance(epoch, task_list, dic_loss, dic_batches_res, classifiers_
 
     if "entity_span_and_type" in task_list:
         entity_span_and_type_epoch_micro_P, \
-        entity_span_and_type_epoch_micro_R, \
-        entity_span_and_type_epoch_micro_F, \
-        dic_sub_task_P_R_F, \
-        dic_corpus_task_micro_P_R_F_entity_span_and_type, \
-        accumulated_each_class_total_TP_FN_FP = report_entity_span_and_type_PRF(dic_batches_res["entity_span_and_type"],
-                                                                                classifiers_dic["entity_span_and_type"].TAGS_Types_fileds_dic,
-                                                                                dic_sub_task_corpus, improve_flag, corpus_list)
+            entity_span_and_type_epoch_micro_R, \
+            entity_span_and_type_epoch_micro_F, \
+            dic_sub_task_P_R_F, \
+            dic_corpus_task_micro_P_R_F_entity_span_and_type, \
+            accumulated_each_class_total_TP_FN_FP = report_entity_span_and_type_PRF(
+            dic_batches_res["entity_span_and_type"],
+            classifiers_dic["entity_span_and_type"].TAGS_Types_fileds_dic,
+            dic_sub_task_corpus, improve_flag, corpus_list)
         print('          entity_span_and_type : Loss: %.3f, P: %.3f, R: %.3f, F: %.3f'
-              %(dic_loss["entity_span_and_type"], entity_span_and_type_epoch_micro_P, entity_span_and_type_epoch_micro_R, entity_span_and_type_epoch_micro_F))
-        dic_PRF["entity_span_and_type"] =  entity_span_and_type_epoch_micro_P, entity_span_and_type_epoch_micro_R, entity_span_and_type_epoch_micro_F
+              % (
+              dic_loss["entity_span_and_type"], entity_span_and_type_epoch_micro_P, entity_span_and_type_epoch_micro_R,
+              entity_span_and_type_epoch_micro_F))
+        dic_PRF[
+            "entity_span_and_type"] = entity_span_and_type_epoch_micro_P, entity_span_and_type_epoch_micro_R, entity_span_and_type_epoch_micro_F
         dic_total_sub_task_P_R_F["entity_span_and_type"] = dic_sub_task_P_R_F
         for corpus, entity_span_PRF in dic_corpus_task_micro_P_R_F_entity_span_and_type.items():
             dic_corpus_task_micro_P_R_F[corpus]["entity_span_and_type"] = entity_span_PRF
@@ -397,15 +438,16 @@ def report_performance(epoch, task_list, dic_loss, dic_batches_res, classifiers_
 
     if "relation" in task_list:
         relation_micro_P, \
-        relation_micro_R, \
-        relation_micro_F, \
-        dic_sub_task_P_R_F, \
-        dic_corpus_task_micro_P_R_F_relation, \
-        accumulated_each_class_total_TP_FN_FP= report_relation_PRF(dic_batches_res["relation"],
-                                                                   classifiers_dic["relation"].TAGS_Types_fileds_dic,
-                                                                   dic_sub_task_corpus, corpus_list)
+            relation_micro_R, \
+            relation_micro_F, \
+            dic_sub_task_P_R_F, \
+            dic_corpus_task_micro_P_R_F_relation, \
+            accumulated_each_class_total_TP_FN_FP = report_relation_PRF(dic_batches_res["relation"],
+                                                                        classifiers_dic[
+                                                                            "relation"].TAGS_Types_fileds_dic,
+                                                                        dic_sub_task_corpus, corpus_list)
         print('          relation    : Loss: %.3f, P: %.3f, R: %.3f, F: %.3f \t\n\t\t\t'
-              %(dic_loss["relation"], relation_micro_P, relation_micro_R, relation_micro_F))
+              % (dic_loss["relation"], relation_micro_P, relation_micro_R, relation_micro_F))
 
         dic_PRF["relation"] = relation_micro_P, relation_micro_R, relation_micro_F
         dic_total_sub_task_P_R_F["relation"] = dic_sub_task_P_R_F
@@ -416,6 +458,7 @@ def report_performance(epoch, task_list, dic_loss, dic_batches_res, classifiers_
     # print(dic_TP_FN_FP)
     return dic_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP
 
+
 def make_entity_span_test_data(TAGS_Entity_Span_fileds_dic):
     O_tag = TAGS_Entity_Span_fileds_dic['entity_span'][1].vocab.stoi["O"]
     B_tag = TAGS_Entity_Span_fileds_dic['entity_span'][1].vocab.stoi["B"]
@@ -423,7 +466,7 @@ def make_entity_span_test_data(TAGS_Entity_Span_fileds_dic):
     E_tag = TAGS_Entity_Span_fileds_dic['entity_span'][1].vocab.stoi["E"]
     S_tag = TAGS_Entity_Span_fileds_dic['entity_span'][1].vocab.stoi["S"]
 
-    make_one_gold_sent = torch.Tensor(1,50).fill_(O_tag)
+    make_one_gold_sent = torch.Tensor(1, 50).fill_(O_tag)
     make_one_gold_sent[0][3] = S_tag
     make_one_gold_sent[0][12] = B_tag
     make_one_gold_sent[0][13] = I_tag
@@ -440,6 +483,7 @@ def make_entity_span_test_data(TAGS_Entity_Span_fileds_dic):
 
     entity_span_list_batches_res = (make_one_gold_sent, make_one_pred_sent)
     return [entity_span_list_batches_res]
+
 
 def make_entity_type_test_data(TAGS_Entity_Type_fileds_dic):
     gold_res = {}
@@ -503,6 +547,7 @@ def make_entity_span_and_type_test_data(TAGS_Entity_Span_And_Type_fileds_dic):
     # make_one_gold_sent = make_one_gold_sent.tolist()
     return [(gold_res, pre_res)]
 
+
 def make_relation_test_data(TAGS_Relation_fileds_dic):
     gold_res = {}
     pre_res = {}
@@ -530,11 +575,13 @@ def make_relation_test_data(TAGS_Relation_fileds_dic):
 
     return [([gold_res], [pre_res])]
 
-if __name__ =="__main__":
+
+if __name__ == "__main__":
     from transformers import *
     from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic
     import argparse
-    from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Entity_Span_And_Type_Classifier, My_Relation_Classifier, My_Bert_Encoder, My_Model
+    from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Entity_Span_And_Type_Classifier, \
+        My_Relation_Classifier, My_Bert_Encoder, My_Model
 
     parser = argparse.ArgumentParser(description="Bert Model")
     parser.add_argument('--GPU', default="3", type=str)
@@ -542,14 +589,18 @@ if __name__ =="__main__":
     parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
     parser.add_argument('--bert_model', default="base", type=str, help="base, large")
-    parser.add_argument('--Task_list', default=["entity_span", "entity_type", "entity_span_and_type", "relation"], nargs='+', help=["entity_span", "entity_type", "entity_span_and_type", "relation"])
-    parser.add_argument('--Task_weights_dic', default="{'entity_span':0.4, 'entity_type':0.1, 'entity_span_and_type':0.1, 'relation':0.4}", type=str)
+    parser.add_argument('--Task_list', default=["entity_span", "entity_type", "entity_span_and_type", "relation"],
+                        nargs='+', help=["entity_span", "entity_type", "entity_span_and_type", "relation"])
+    parser.add_argument('--Task_weights_dic',
+                        default="{'entity_span':0.4, 'entity_type':0.1, 'entity_span_and_type':0.1, 'relation':0.4}",
+                        type=str)
 
-    parser.add_argument('--Corpus_list', default=["ADE", "Twi_ADE", "DDI", "CPR"], nargs='+', help=["ADE", "Twi_ADE", "DDI", "CPR"])
+    parser.add_argument('--Corpus_list', default=["ADE", "Twi_ADE", "DDI", "CPR"], nargs='+',
+                        help=["ADE", "Twi_ADE", "DDI", "CPR"])
     parser.add_argument('--Train_way', default="Multi_Task_Training", type=str)
 
     parser.add_argument('--Entity_Prep_Way', default="standard", type=str, help=["standard", "entitiy_type_marker"])
-    parser.add_argument('--If_add_prototype', action='store_true', default=False) # True False
+    parser.add_argument('--If_add_prototype', action='store_true', default=False)  # True False
 
     parser.add_argument('--Average_Time', default=3, type=int)
     parser.add_argument('--EPOCH', default=100, type=int)
@@ -574,7 +625,8 @@ if __name__ =="__main__":
     parser.add_argument('--Max_weight', default=5, type=float)
     parser.add_argument('--Tau', default=1.0, type=float)
 
-    parser.add_argument('--Relation_input', default="entity_span", type=str, help=["entity_span", "entity_span_and_type"])
+    parser.add_argument('--Relation_input', default="entity_span", type=str,
+                        help=["entity_span", "entity_span_and_type"])
     parser.add_argument('--Only_relation', action='store_true', default=False)
     parser.add_argument('--Num_warmup_epoch', default=3, type=int)
     parser.add_argument('--Decay_epoch_num', default=40, type=float)
@@ -604,7 +656,7 @@ if __name__ =="__main__":
         args.Word_embedding_size = 768
         args.Hidden_Size_Common_Encoder = args.Word_embedding_size
 
-    dic_batches_res = {"entity_span":[], "entity_type":[], "relation":[], "entity_span_and_type":[]}
+    dic_batches_res = {"entity_span": [], "entity_type": [], "relation": [], "entity_span_and_type": []}
     all_data_flag = False
     task_list = ["entity_span", "entity_type", "entity_span_and_type", "relation"]
     corpus_list = ["Twi_ADE"]
@@ -620,7 +672,6 @@ if __name__ =="__main__":
     test_iterator_list = []
     Average_Time_list = []
 
-
     my_entity_span_classifier = My_Entity_Span_Classifier(args, device)
     my_entity_type_classifier = My_Entity_Type_Classifier(args, device)
     my_entity_span_and_type_classifier = My_Entity_Span_And_Type_Classifier(args, device)
@@ -628,7 +679,7 @@ if __name__ =="__main__":
 
     for corpus_name, (entity_type_num_list, relation_num_list, file_train_valid_test_list) in corpus_file_dic.items():
         NER_train_iterator, NER_valid_iterator_NER, NER_test_iterator_NER, NER_TOEKNS_fileds, TAGS_Entity_Span_fileds_dic, \
-        TAGS_Entity_Type_fileds_dic, TAGS_Entity_Span_And_Type_fileds_dic, TAGS_sampled_entity_span_fileds_dic, TAGS_sep_entity_fileds_dic = \
+            TAGS_Entity_Type_fileds_dic, TAGS_Entity_Span_And_Type_fileds_dic, TAGS_sampled_entity_span_fileds_dic, TAGS_sep_entity_fileds_dic = \
             prepared_NER_data(args.BATCH_SIZE, device, tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
 
         train_iterator_list.append(NER_train_iterator)
@@ -642,37 +693,29 @@ if __name__ =="__main__":
         if "relation" in args.Task_list:
             RC_train_iterator, RC_valid_iterator, RC_test_iterator, RC_TOEKNS_fileds, TAGS_Relation_pair_fileds_dic, TAGS_sampled_entity_span_fileds_dic = \
                 prepared_RC_data(args.BATCH_SIZE, device, tokenizer_RC, file_train_valid_test_list, relation_num_list)
-            my_relation_classifier.create_classifers(TAGS_Relation_pair_fileds_dic, TAGS_sampled_entity_span_fileds_dic, TAGS_Entity_Type_fileds_dic)
+            my_relation_classifier.create_classifers(TAGS_Relation_pair_fileds_dic, TAGS_sampled_entity_span_fileds_dic,
+                                                     TAGS_Entity_Type_fileds_dic)
 
             train_iterator_list.append(RC_train_iterator)
             valid_iterator_list.append(RC_test_iterator)
             test_iterator_list.append(RC_test_iterator)
 
-        dic_loss = {"average":0, "entity_span":0, "entity_type":0, "entity_span_and_type":0, "relation":0,}
+        dic_loss = {"average": 0, "entity_span": 0, "entity_type": 0, "entity_span_and_type": 0, "relation": 0, }
 
-
-        dic_batches_res["entity_span"] = make_entity_span_test_data(TAGS_Entity_Span_fileds_dic )
+        dic_batches_res["entity_span"] = make_entity_span_test_data(TAGS_Entity_Span_fileds_dic)
         dic_batches_res["entity_type"] = make_entity_type_test_data(TAGS_Entity_Type_fileds_dic)
-        dic_batches_res["entity_span_and_type"] = make_entity_span_and_type_test_data(TAGS_Entity_Span_And_Type_fileds_dic)
+        dic_batches_res["entity_span_and_type"] = make_entity_span_and_type_test_data(
+            TAGS_Entity_Span_And_Type_fileds_dic)
         dic_batches_res["relation"] = make_relation_test_data(TAGS_Relation_pair_fileds_dic)
 
-
-        classifiers_dic = dict(zip(["entity_span", "entity_type", "entity_span_and_type", "relation"], [my_entity_span_classifier, my_entity_type_classifier, my_entity_span_and_type_classifier, my_relation_classifier]))
-        dic_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP = report_performance(0, task_list, dic_loss, dic_batches_res, classifiers_dic, sep_corpus_file_dic, False, valid_flag)
+        classifiers_dic = dict(zip(["entity_span", "entity_type", "entity_span_and_type", "relation"],
+                                   [my_entity_span_classifier, my_entity_type_classifier,
+                                    my_entity_span_and_type_classifier, my_relation_classifier]))
+        dic_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP = report_performance(0, task_list,
+                                                                                                          dic_loss,
+                                                                                                          dic_batches_res,
+                                                                                                          classifiers_dic,
+                                                                                                          sep_corpus_file_dic,
+                                                                                                          False,
+                                                                                                          valid_flag)
         print(dic_TP_FN_FP)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -285,8 +285,7 @@ def recored_detail_performance(epoch, dic_total_sub_task_P_R_F, dic_valid_PRF, f
                                 PRF = dic_total_sub_task_P_R_F[need_task][sub_task]
                                 f.write("\t %-16s: %-25s \t TP_FN_FP: %-5s \n" % (str(sub_task),
                                                                                   str([round(i, 3) for i in PRF]),
-                                                                                  str(dic_TP_FN_FP[need_task][
-                                                                                          sub_task])))
+                                                                                  str(dic_TP_FN_FP[need_task][sub_task])))
                         except KeyError:
                             pass
                     f.write("\n")

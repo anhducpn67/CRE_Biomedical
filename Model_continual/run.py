@@ -9,6 +9,8 @@ import math
 import copy
 import random
 import numpy as np
+import torchtext
+
 from utils import print_execute_time, record_pred_str_res, Logger, record_each_performance, recored_detail_performance, \
     EMA, get_entity_type_rep_dic, log_gradient_updates, log_parameter_and_gradient_statistics
 from metric import report_performance
@@ -19,7 +21,7 @@ from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
 parser.add_argument('--All_data', action='store_true', default=False)  # True False
-parser.add_argument('--BATCH_SIZE', default=16, type=int)
+parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
 parser.add_argument('--bert_model', default="base", type=str, help="base, large")
 parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
@@ -30,8 +32,7 @@ parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "P
                     help=["DDI", "Twi_ADE", "ADE", "CPR", "PPI"])
 parser.add_argument('--Random_ratio', default=1, type=float, help=">1 means mask all data from other corpus")
 parser.add_argument('--Group_num', default=40, type=int)
-parser.add_argument('--Training_way', default="Multi_Task_Training", type=str,
-                    help="Multi_Task_Training, Multi_Task_continual_Training")
+parser.add_argument('--Training_way', default="Continual_Training", type=str)
 parser.add_argument('--Test_flag', action='store_true', default=False, help=[False, True])
 parser.add_argument('--Test_TAC_flag', action='store_true', default=False, help=[False, True])  # "TAC2019"
 parser.add_argument('--Inner_test_TAC_flag', action='store_true', default=False, help=[False, True])
@@ -49,7 +50,7 @@ parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last 
 
 parser.add_argument('--Average_Time', default=1, type=int)
 parser.add_argument('--EPOCH', default=100, type=int)
-parser.add_argument('--Min_train_performance_Report', default=1, type=int)
+parser.add_argument('--Min_train_performance_Report', default=20, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=20, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
@@ -88,7 +89,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 warnings.filterwarnings("ignore")
 
 file_param_record = '../result/param_record'
-file_detail_performance = '../result/detail_performance/performance_' + str(sys.argv[1:]) + '.txt'
+# file_detail_performance = '../result/detail_performance/performance_' + str(sys.argv[1:]) + '.txt'
 file_result = '../result/detail_results/result_' + str(sys.argv[1:]) + '.json'
 file_model_save = "../result/save_model/" + "Model_" + str(sys.argv[1:])
 file_training_performance = '../result/detail_training/training_' + str(sys.argv[1:]) + '.txt'
@@ -139,7 +140,7 @@ import torch.optim as optim
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
-device = torch.device("cuda")
+device = torch.device("cpu")
 OPTIMIZER = eval("optim." + args.Optim)
 Embedding_requires_grad = True
 BATCH_FIRST = True
@@ -150,30 +151,28 @@ torch.cuda.manual_seed(SEED)
 
 class Train_valid_test:
     def __init__(self, data_ID_2_corpus_dic, my_model, tokenizer_list,
-                 train_iterator_list, valid_iterator_list, test_iterator_list,
+                 train_set_list, valid_set_list, test_set_list,
                  sep_corpus_file_dic, ema, writer):
 
         self.my_model = my_model.to(device)
-        self.current_epoch = 0
         self.tokenizer_list = tokenizer_list
 
         self.data_ID_2_corpus_dic = data_ID_2_corpus_dic
 
-        if args.Training_way == "Multi_Task_continual_Training":
-            self.train_iterator_dic = self.get_dic_data(train_iterator_list, args.Group_num, "train")
-            self.valid_iterator_dic = self.get_dic_data(valid_iterator_list, args.Group_num, "valid")
-            self.test_iterator_dic = self.get_dic_data(test_iterator_list, 1, "test")
-        elif args.Training_way == "Multi_Task_Training":
-            self.train_iterator_dic = train_iterator_list
-            self.valid_iterator_dic = valid_iterator_list
-            self.test_iterator_dic = test_iterator_list
-        else:
-            raise Exception("Training_way error")
+        self.train_set_list = train_set_list
+        self.valid_set_list = valid_set_list
+        self.test_set_list = test_set_list
+
+        self.train_corpus_to_examples_dic = self.get_dic_data(train_set_list)
+        self.valid_corpus_to_examples_dic = self.get_dic_data(valid_set_list)
+        self.test_corpus_to_examples_dic = self.get_dic_data(test_set_list)
+
+        self.train_iterator_dic = None
+        self.valid_iterator_dic = None
+        self.test_iterator_dic = None
 
         self.writer = writer
         self.ema = ema
-        num_warmup_step = args.Num_warmup_epoch * len(train_iterator_list[0])
-        num_training_steps = args.Decay_epoch_num * len(train_iterator_list[0])
 
         self.sep_corpus_file_dic = sep_corpus_file_dic
         self.all_entity_type_classifier_list = ["only_entity_type_" + i for i in ['Gene', 'Drug', 'Disease']]
@@ -186,14 +185,10 @@ class Train_valid_test:
         self.optimizer_bert_NER = OPTIMIZER(
             params=filter(lambda p: p.requires_grad, self.my_model.bert_NER.parameters()), lr=args.LR_max_bert,
             weight_decay=args.L2)
-        self.scheduler_bert_NER = transformers.get_constant_schedule_with_warmup(self.optimizer_bert_NER,
-                                                                                 num_warmup_step)
         if "relation" in args.Task_list:
             self.optimizer_bert_RC = OPTIMIZER(
                 params=filter(lambda p: p.requires_grad, self.my_model.bert_RC.parameters()), lr=args.LR_max_bert,
                 weight_decay=args.L2)
-            self.scheduler_bert_RC = transformers.get_constant_schedule_with_warmup(self.optimizer_bert_RC,
-                                                                                    num_warmup_step)
 
         for task in self.my_model.task_list:
             # set tasks optim
@@ -202,16 +197,7 @@ class Train_valid_test:
             my_lr_max = getattr(args, "LR_max_" + str(task))
             setattr(self, "optimizer_" + str(task), OPTIMIZER(params=filter(lambda p: p.requires_grad, my_parameters),
                                                               lr=my_lr_max, weight_decay=args.L2))
-            # set tasks scheduler
-            my_optim = getattr(self, "optimizer_" + str(task))
-            setattr(self, "scheduler_" + str(task),
-                    transformers.get_constant_schedule_with_warmup(my_optim, num_warmup_step))
-
-        if args.If_add_prototype:
-            self.entity_type_rep_dic = get_entity_type_rep_dic(train_iterator_list, valid_iterator_list, self.my_model,
-                                                               args.Type_emb_num, device)
-        else:
-            self.entity_type_rep_dic = {}
+        self.entity_type_rep_dic = {}
 
     def sep_list(self, listTemp, n):
         step = math.ceil(len(listTemp) / n)
@@ -224,55 +210,30 @@ class Train_valid_test:
             s_index = e_index
         return return_list
 
-    def get_dic_data(self, iterator_list, group_num, data_flag):
-        # no stage, only group (group=1 = one-by-one)
+    def get_dic_data(self, set_list):
         NER_data_dic = {}
         RC_data_dic = {}
-        return_data_dic = {}
-        NER_total_list = [batch for batch in iterator_list[0]]
-        RC_total_list = [batch for batch in iterator_list[1]]
+        return_data_dict = {}
 
-        if args.Test_TAC_flag and (not args.Inner_test_TAC_flag) and (data_flag == "train" or data_flag == "valid"):
-            return return_data_dic
-        else:
-            corpus_list = copy.deepcopy(args.Corpus_list)
+        corpus_list = copy.deepcopy(args.Corpus_list)
 
-            if data_flag == "train" or data_flag == "valid":
-                if "TAC2019" in corpus_list:
-                    corpus_list.remove("TAC2019")
+        NER_total_list = [example for example in set_list[0]]
+        RC_total_list = [example for example in set_list[1]]
 
-            if data_flag == "test" and args.Test_TAC_flag:
-                corpus_list = ["TAC2019"]
+        for example in NER_total_list:
+            corpus_name = self.data_ID_2_corpus_dic[str(int(example.ID))[:5]]
+            NER_data_dic.setdefault(corpus_name, [])
+            NER_data_dic[corpus_name].append(example)
 
-            for NER_batch in NER_total_list:
-                corpus_name = self.data_ID_2_corpus_dic[str(int(NER_batch.ID[0]))[:5]]
-                NER_data_dic.setdefault(corpus_name, [])
-                NER_data_dic[corpus_name].append(NER_batch)
+        for example in RC_total_list:
+            corpus_name = self.data_ID_2_corpus_dic[str(int(example.ID))[:5]]
+            RC_data_dic.setdefault(corpus_name, [])
+            RC_data_dic[corpus_name].append(example)
 
-            for RC_batch in RC_total_list:
-                corpus_name = self.data_ID_2_corpus_dic[str(int(RC_batch.ID[0]))[:5]]
-                RC_data_dic.setdefault(corpus_name, [])
-                RC_data_dic[corpus_name].append(RC_batch)
+        for corpus_name in corpus_list:
+            return_data_dict[corpus_name] = (NER_data_dic[corpus_name], RC_data_dic[corpus_name])
 
-            for corpus_name in corpus_list:
-                NER_group = [NER_data_dic[corpus_name]]
-                RC_group = [RC_data_dic[corpus_name]]
-                return_data_dic[corpus_name] = [[ner_data, rc_data] for ner_data, rc_data in zip(NER_group, RC_group)]
-
-            if args.Test_TAC_flag and data_flag == "test":
-                new_return_data_dic = {"TAC2019": return_data_dic["TAC2019"]}
-                return_data_dic = new_return_data_dic
-
-        new_return_data_dic = {0: {}}
-        for stage, dic_group in new_return_data_dic.items():
-            for corpus in corpus_list:
-                if stage < len(return_data_dic[corpus]):
-                    NER_temp_list = self.sep_list(return_data_dic[corpus][stage][0], group_num)
-                    RC_temp_list = self.sep_list(return_data_dic[corpus][stage][1], group_num)
-                    for group in range(group_num):
-                        new_return_data_dic[stage].setdefault(group, {})
-                        new_return_data_dic[stage][group][corpus] = [NER_temp_list[group], RC_temp_list[group]]
-        return new_return_data_dic
+        return return_data_dict
 
     def save_model(self, epoch):
         self.model_state_dic = {}
@@ -281,7 +242,7 @@ class Train_valid_test:
         self.model_state_dic['my_model'] = self.my_model.state_dict()
         torch.save(self.model_state_dic, file_model_save)
 
-    def one_epoch(self, iterator_dic, valid_test_flag, epoch):
+    def one_epoch(self, corpus_name, iterator_dic, valid_test_flag, epoch):
         """
         dic_batches_res = {"entity_span":[  batch-num [ ( one_batch_pred_sub_res[batch_size[entity_num]], [batch.entity_span] ) ] ],
                             "entity_type":[], "relation":[]}
@@ -294,205 +255,113 @@ class Train_valid_test:
         epoch_relation_loss = 0
         count = 0
 
-        corpus_list = copy.deepcopy(args.Corpus_list)
-        if "TAC2019" in corpus_list:
-            corpus_list.remove("TAC2019")
+        entity_type_no_need_list = []
+        entity_span_and_type_no_need_list = []
+        relation_no_need_list = []
 
-        if args.Training_way == "Multi_Task_continual_Training":
-            for stage_number in reversed(range(len(iterator_dic))):
-                for group_number in range(args.Group_num):
-                    for corpus_name in corpus_list:
-                        entity_type_no_need_list = []
-                        entity_span_and_type_no_need_list = []
-                        relation_no_need_list = []
+        if valid_test_flag == "train":
+            if args.Random_ratio >= np.random.uniform(0, 1):
+                self.false_flag = True
+                if "entity_type" in args.Task_list:
+                    for class_name in list(set(self.all_entity_type_classifier_list).difference(
+                            set(self.sep_corpus_file_dic[corpus_name]['entity_type']))):
+                        if hasattr(self.my_model.my_entity_type_classifier, "my_classifer_{0}".format(class_name)):
+                            no_need_classifer = getattr(self.my_model.my_entity_type_classifier,
+                                                        "my_classifer_{0}".format(class_name))
+                            entity_type_no_need_list.append(no_need_classifer)
+                            for p in no_need_classifer.parameters():
+                                p.requires_grad = False
+                if "entity_span_and_type" in args.Task_list:
+                    for class_name in list(set(self.all_entity_span_and_type_classifier_list).difference(
+                            set(self.sep_corpus_file_dic[corpus_name]['entity_span_and_type']))):
+                        if hasattr(self.my_model.my_entity_span_and_type_classifier,
+                                   "my_classifer_{0}".format(class_name)):
+                            no_need_classifer = getattr(self.my_model.my_entity_span_and_type_classifier,
+                                                        "my_classifer_{0}".format(class_name))
+                            entity_span_and_type_no_need_list.append(no_need_classifer)
+                            for p in no_need_classifer.parameters():
+                                p.requires_grad = False
+                if "relation" in args.Task_list:
+                    for class_name in list(set(self.all_relation_classifier_list).difference(
+                            set(self.sep_corpus_file_dic[corpus_name]['relation']))):
+                        if hasattr(self.my_model.my_relation_classifier, "my_classifer_{0}".format(class_name)):
+                            no_need_classifer = getattr(self.my_model.my_relation_classifier,
+                                                        "my_classifer_{0}".format(class_name))
+                            relation_no_need_list.append(no_need_classifer)
+                            for p in no_need_classifer.parameters():
+                                p.requires_grad = False
 
-                        if corpus_name in iterator_dic[stage_number][group_number].keys():
-
-                            if valid_test_flag == "train":
-                                if args.Random_ratio >= np.random.uniform(0, 1):
-                                    self.false_flag = True
-                                    if "entity_type" in args.Task_list:
-                                        for class_name in list(set(self.all_entity_type_classifier_list).difference(
-                                                set(self.sep_corpus_file_dic[corpus_name]['entity_type']))):
-                                            if hasattr(self.my_model.my_entity_type_classifier,
-                                                       "my_classifer_{0}".format(class_name)):
-                                                no_need_classifer = getattr(self.my_model.my_entity_type_classifier,
-                                                                            "my_classifer_{0}".format(class_name))
-                                                entity_type_no_need_list.append(no_need_classifer)
-                                                for p in no_need_classifer.parameters():
-                                                    p.requires_grad = False
-                                    if "entity_span_and_type" in args.Task_list:
-                                        for class_name in list(
-                                                set(self.all_entity_span_and_type_classifier_list).difference(set(
-                                                    self.sep_corpus_file_dic[corpus_name][
-                                                        'entity_span_and_type']))):
-                                            if hasattr(self.my_model.my_entity_span_and_type_classifier,
-                                                       "my_classifer_{0}".format(class_name)):
-                                                no_need_classifer = getattr(
-                                                    self.my_model.my_entity_span_and_type_classifier,
-                                                    "my_classifer_{0}".format(class_name))
-                                                entity_span_and_type_no_need_list.append(no_need_classifer)
-                                                for p in no_need_classifer.parameters():
-                                                    p.requires_grad = False
-                                    if "relation" in args.Task_list:
-                                        for class_name in list(set(self.all_relation_classifier_list).difference(
-                                                set(self.sep_corpus_file_dic[corpus_name]['relation']))):
-                                            if hasattr(self.my_model.my_relation_classifier,
-                                                       "my_classifer_{0}".format(class_name)):
-                                                no_need_classifer = getattr(self.my_model.my_relation_classifier,
-                                                                            "my_classifer_{0}".format(class_name))
-                                                relation_no_need_list.append(no_need_classifer)
-                                                for p in no_need_classifer.parameters():
-                                                    p.requires_grad = False
-
-                            group_list_NER_RC = iterator_dic[stage_number][group_number][corpus_name]
-
-                            if "relation" in args.Task_list:
-                                temp_my_iterator_list = [[ner, rc] for ner, rc in
-                                                         zip(group_list_NER_RC[0], group_list_NER_RC[1])]
-                            else:
-                                raise Exception("error!")
-
-                            for batch_list in temp_my_iterator_list:
-                                count += 1
-                                with torch.cuda.amp.autocast():
-                                    dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list, epoch,
-                                                                                                  self.entity_type_rep_dic,
-                                                                                                  valid_test_flag)
-
-                                batch_loss_list = []
-                                if "entity_span" in self.my_model.task_list:
-                                    # batch_entity_span_loss = args.Task_weights_dic["entity_span"] * dic_loss_one_batch["entity_span"]
-                                    batch_entity_span_loss = dic_loss_one_batch["entity_span"]
-                                    epoch_entity_span_loss += batch_entity_span_loss
-                                    batch_loss_list.append(batch_entity_span_loss)
-                                if "entity_type" in self.my_model.task_list and dic_loss_one_batch["entity_type"] is not None:
-                                    # batch_entity_type_loss =  args.Task_weights_dic["entity_type"] * dic_loss_one_batch["entity_type"]
-                                    batch_entity_type_loss = dic_loss_one_batch["entity_type"]
-                                    epoch_entity_type_loss += batch_entity_type_loss
-                                    batch_loss_list.append(batch_entity_type_loss)
-                                if "entity_span_and_type" in self.my_model.task_list:
-                                    # batch_entity_span_and_type_loss = args.Task_weights_dic["entity_span_and_type"] * dic_loss_one_batch["entity_span_and_type"]
-                                    batch_entity_span_and_type_loss = dic_loss_one_batch["entity_span_and_type"]
-                                    epoch_entity_span_and_type_loss += batch_entity_span_and_type_loss
-                                    batch_loss_list.append(batch_entity_span_and_type_loss)
-                                if "relation" in self.my_model.task_list:
-                                    # batch_relation_loss = args.Task_weights_dic["relation"] * dic_loss_one_batch["relation"]
-                                    batch_relation_loss = dic_loss_one_batch["relation"]
-                                    epoch_relation_loss += batch_relation_loss
-                                    batch_loss_list.append(batch_relation_loss)
-
-                                if valid_test_flag == "train":
-
-                                    batch_loss = torch.dot(
-                                        torch.tensor(list(args.Task_weights_dic.values()), device=device),
-                                        torch.stack(batch_loss_list))
-
-                                    batch_loss.backward()
-                                    self.scheduler_bert_NER.step()
-                                    self.optimizer_bert_NER.step()
-                                    self.optimizer_bert_NER.zero_grad()
-
-                                    if "relation" in args.Task_list:
-                                        self.scheduler_bert_RC.step()
-                                        self.optimizer_bert_RC.step()
-                                        self.optimizer_bert_RC.zero_grad()
-
-                                    for task in self.my_model.task_list:
-                                        getattr(self, "scheduler_" + str(task)).step()
-                                        getattr(self, "optimizer_" + str(task)).step()
-                                        getattr(self, "optimizer_" + str(task)).zero_grad()
-                                    self.ema.update()
-
-                                dic_batches_res["ID_list"].append(batch_list[0].ID)
-                                dic_batches_res["tokens_list"].append(batch_list[0].tokens)
-                                dic_batches_res["corpus_name_list"].append(corpus_name)
-                                for task in self.my_model.task_list:
-                                    try:
-                                        dic_batches_res[task].append(dic_res_one_batch[task])
-                                    except:
-                                        pass  # nothing wrong
-
-                            if valid_test_flag == "train" and self.false_flag:
-                                if "entity_type" in args.Task_list:
-                                    for class_name in entity_type_no_need_list:
-                                        for p in class_name.parameters():
-                                            p.requires_grad = True
-                                if "entity_span_and_type" in args.Task_list:
-                                    for class_name in entity_span_and_type_no_need_list:
-                                        for p in class_name.parameters():
-                                            p.requires_grad = True
-                                if "relation" in args.Task_list:
-                                    for class_name in relation_no_need_list:
-                                        for p in class_name.parameters():
-                                            p.requires_grad = True
-        elif args.Training_way == "Multi_Task_Training":
-
-            if "relation" in args.Task_list:
-                temp_my_iterator_list = [[ner, rc] for ner, rc in zip(iterator_dic[0], iterator_dic[1])]
-            else:
-                raise Exception("error!")
-
-            for batch_list in temp_my_iterator_list:
-                count += 1
-                with torch.cuda.amp.autocast():
-                    dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list, epoch,
-                                                                                  self.entity_type_rep_dic,
-                                                                                  valid_test_flag)
-
-                batch_loss_list = []
-                if "entity_span" in self.my_model.task_list:
-                    # batch_entity_span_loss = args.Task_weights_dic["entity_span"] * dic_loss_one_batch["entity_span"]
-                    batch_entity_span_loss = dic_loss_one_batch["entity_span"]
-                    epoch_entity_span_loss += batch_entity_span_loss
-                    batch_loss_list.append(batch_entity_span_loss)
-                if "entity_type" in self.my_model.task_list and dic_loss_one_batch["entity_type"] is not None:
-                    # batch_entity_type_loss =  args.Task_weights_dic["entity_type"] * dic_loss_one_batch["entity_type"]
-                    batch_entity_type_loss = dic_loss_one_batch["entity_type"]
-                    epoch_entity_type_loss += batch_entity_type_loss
-                    batch_loss_list.append(batch_entity_type_loss)
-                if "entity_span_and_type" in self.my_model.task_list:
-                    # batch_entity_span_and_type_loss = args.Task_weights_dic["entity_span_and_type"] * dic_loss_one_batch["entity_span_and_type"]
-                    batch_entity_span_and_type_loss = dic_loss_one_batch["entity_span_and_type"]
-                    epoch_entity_span_and_type_loss += batch_entity_span_and_type_loss
-                    batch_loss_list.append(batch_entity_span_and_type_loss)
-                if "relation" in self.my_model.task_list:
-                    # batch_relation_loss = args.Task_weights_dic["relation"] * dic_loss_one_batch["relation"]
-                    batch_relation_loss = dic_loss_one_batch["relation"]
-                    epoch_relation_loss += batch_relation_loss
-                    batch_loss_list.append(batch_relation_loss)
-
-                if valid_test_flag == "train":
-
-                    batch_loss = torch.dot(torch.tensor(list(args.Task_weights_dic.values()), device=device),
-                                           torch.stack(batch_loss_list))
-
-                    batch_loss.backward()
-                    self.scheduler_bert_NER.step()
-                    self.optimizer_bert_NER.step()
-                    self.optimizer_bert_NER.zero_grad()
-
-                    if "relation" in args.Task_list:
-                        self.scheduler_bert_RC.step()
-                        self.optimizer_bert_RC.step()
-                        self.optimizer_bert_RC.zero_grad()
-
-                    for task in self.my_model.task_list:
-                        getattr(self, "scheduler_" + str(task)).step()
-                        getattr(self, "optimizer_" + str(task)).step()
-                        getattr(self, "optimizer_" + str(task)).zero_grad()
-                    self.ema.update()
-
-                dic_batches_res["ID_list"].append(batch_list[0].ID)
-                dic_batches_res["tokens_list"].append(batch_list[0].tokens)
-                # dic_batches_res["corpus_name_list"].append(corpus_name)
-                for task in self.my_model.task_list:
-                    try:
-                        dic_batches_res[task].append(dic_res_one_batch[task])
-                    except:
-                        pass  # nothing wrong
+        if "relation" in args.Task_list:
+            temp_my_iterator_list = [[ner, rc] for ner, rc in zip(iterator_dic[0], iterator_dic[1])]
         else:
-            raise Exception("Training_way error !")
+            raise Exception("error!")
+
+        for batch_list in temp_my_iterator_list:
+            count += 1
+            with torch.cuda.amp.autocast():
+                dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list, epoch,
+                                                                              self.entity_type_rep_dic,
+                                                                              valid_test_flag)
+
+            batch_loss_list = []
+            if "entity_span" in self.my_model.task_list:
+                batch_entity_span_loss = dic_loss_one_batch["entity_span"]
+                epoch_entity_span_loss += batch_entity_span_loss
+                batch_loss_list.append(batch_entity_span_loss)
+            if "entity_type" in self.my_model.task_list and dic_loss_one_batch["entity_type"] is not None:
+                batch_entity_type_loss = dic_loss_one_batch["entity_type"]
+                epoch_entity_type_loss += batch_entity_type_loss
+                batch_loss_list.append(batch_entity_type_loss)
+            if "entity_span_and_type" in self.my_model.task_list:
+                batch_entity_span_and_type_loss = dic_loss_one_batch["entity_span_and_type"]
+                epoch_entity_span_and_type_loss += batch_entity_span_and_type_loss
+                batch_loss_list.append(batch_entity_span_and_type_loss)
+            if "relation" in self.my_model.task_list:
+                batch_relation_loss = dic_loss_one_batch["relation"]
+                epoch_relation_loss += batch_relation_loss
+                batch_loss_list.append(batch_relation_loss)
+
+            if valid_test_flag == "train":
+
+                batch_loss = torch.dot(
+                    torch.tensor(list(args.Task_weights_dic.values()), device=device),
+                    torch.stack(batch_loss_list))
+
+                batch_loss.backward()
+                self.optimizer_bert_NER.step()
+                self.optimizer_bert_NER.zero_grad()
+
+                if "relation" in args.Task_list:
+                    self.optimizer_bert_RC.step()
+                    self.optimizer_bert_RC.zero_grad()
+
+                for task in self.my_model.task_list:
+                    getattr(self, "optimizer_" + str(task)).step()
+                    getattr(self, "optimizer_" + str(task)).zero_grad()
+                self.ema.update()
+
+            dic_batches_res["ID_list"].append(batch_list[0].ID)
+            dic_batches_res["tokens_list"].append(batch_list[0].tokens)
+            dic_batches_res["corpus_name_list"].append(corpus_name)
+            for task in self.my_model.task_list:
+                try:
+                    dic_batches_res[task].append(dic_res_one_batch[task])
+                except:
+                    pass  # nothing wrong
+
+        if valid_test_flag == "train" and self.false_flag:
+            if "entity_type" in args.Task_list:
+                for class_name in entity_type_no_need_list:
+                    for p in class_name.parameters():
+                        p.requires_grad = True
+            if "entity_span_and_type" in args.Task_list:
+                for class_name in entity_span_and_type_no_need_list:
+                    for p in class_name.parameters():
+                        p.requires_grad = True
+            if "relation" in args.Task_list:
+                for class_name in relation_no_need_list:
+                    for p in class_name.parameters():
+                        p.requires_grad = True
 
         epoch_loss = 0
         dic_loss = {"average": 0}
@@ -513,217 +382,178 @@ class Train_valid_test:
 
         return dic_loss, dic_batches_res
 
-    def one_epoch_train(self, epoch):
+    def one_epoch_train(self, corpus_name, epoch):
         self.my_model.train()
-        dic_loss, dic_batches_res = self.one_epoch(self.train_iterator_dic, "train", epoch)
+        dic_loss, dic_batches_res = self.one_epoch(corpus_name, self.train_iterator_dic, "train", epoch)
         return dic_loss, dic_batches_res
 
-    def one_epoch_valid(self, epoch):
+    def one_epoch_valid(self, corpus_name, epoch):
         with torch.no_grad():
             self.my_model.eval()
             self.ema.apply_shadow()
-            dic_loss, dic_batches_res = self.one_epoch(self.valid_iterator_dic, "valid", epoch)
+            dic_loss, dic_batches_res = self.one_epoch(corpus_name, self.valid_iterator_dic, "valid", epoch)
             self.ema.restore()
         # torch.cuda.empty_cache()
         return dic_loss, dic_batches_res
 
+    def set_iterator_for_specific_corpus(self, corpus_name_list):
+        NER_train, RC_train = self.train_set_list
+        NER_valid, RC_valid = self.valid_set_list
+        NER_test, RC_test = self.test_set_list
+        NER_train.examples = []
+        RC_train.examples = []
+        NER_valid.examples = []
+        RC_valid.examples = []
+        NER_test.examples = []
+        RC_test.examples = []
+
+        for corpus_name in corpus_name_list:
+            NER_train_corpus, RC_train_corpus = self.train_corpus_to_examples_dic[corpus_name]
+            NER_valid_corpus, RC_valid_corpus = self.valid_corpus_to_examples_dic[corpus_name]
+            NER_test_corpus, RC_test_corpus = self.test_corpus_to_examples_dic[corpus_name]
+            NER_train.examples += NER_train_corpus
+            RC_train.examples += RC_train_corpus
+            NER_valid.examples += NER_valid_corpus
+            RC_valid.examples += RC_valid_corpus
+            NER_test.examples += NER_test_corpus
+            RC_test.examples += RC_test_corpus
+
+        NER_train_iterator, NER_valid_iterator, NER_test_iterator = torchtext.legacy.data.BucketIterator.splits(
+            [NER_train, NER_valid, NER_test], batch_size=args.BATCH_SIZE, sort=False, shuffle=True,
+            repeat=False, device=device)
+        RC_train_iterator, RC_valid_iterator, RC_test_iterator = torchtext.legacy.data.BucketIterator.splits(
+            [RC_train, RC_valid, RC_test], batch_size=args.BATCH_SIZE, sort=False, shuffle=True,
+            repeat=False, device=device)
+        self.train_iterator_dic = [NER_train_iterator, RC_train_iterator]
+        self.valid_iterator_dic = [NER_valid_iterator, RC_valid_iterator]
+        self.test_iterator_dic = [NER_test_iterator, RC_test_iterator]
+
     @print_execute_time
     def train_valid_fn(self, average_num):
-        save_epoch = 0
-        early_stop_num = args.EARLY_STOP_NUM
-        maxF = 0
-
         corpus_list = copy.deepcopy(args.Corpus_list)
-        if "TAC2019" in corpus_list and not args.Inner_test_TAC_flag:
-            corpus_list.remove("TAC2019")
 
         print("start training...")
-        for epoch in range(self.current_epoch, args.EPOCH + 1):
+        for idx_corpus, corpus_name in enumerate(corpus_list):
+            print('='*100)
+            maxF = 0
+            save_epoch = 0
+            early_stop_num = args.EARLY_STOP_NUM
+            self.set_iterator_for_specific_corpus([corpus_name])
+            for epoch in range(0, args.EPOCH + 1):
+                dic_train_loss, dic_batches_train_res = self.one_epoch_train(corpus_name, epoch)
+                if epoch >= args.Min_train_performance_Report:
+                    report_performance(corpus_name, epoch, self.my_model.task_list, dic_train_loss,
+                                       dic_batches_train_res,
+                                       self.my_model.classifiers_dic,
+                                       self.sep_corpus_file_dic,
+                                       args.Improve_Flag, "train")
 
-            dic_train_loss, dic_batches_train_res = self.one_epoch_train(epoch)
-            if epoch >= args.Min_train_performance_Report:
-                dic_train_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
-                    = report_performance(epoch, self.my_model.task_list, dic_train_loss, dic_batches_train_res,
-                                         self.my_model.classifiers_dic,
-                                         self.sep_corpus_file_dic,
-                                         args.Improve_Flag, "train")
+                    # Validating for each previous corpus
+                    for i in range(0, idx_corpus + 1):
+                        corpus_name_valid = corpus_list[i]
+                        self.set_iterator_for_specific_corpus([corpus_name_valid])
+                        dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(corpus_name_valid, 0)
+                        dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
+                            = report_performance(corpus_name_valid, epoch, self.my_model.task_list, dic_valid_loss,
+                                                 dic_batches_valid_res,
+                                                 self.my_model.classifiers_dic,
+                                                 self.sep_corpus_file_dic,
+                                                 args.Improve_Flag, "valid")
 
-                if args.Tensorboard:
-                    for task in self.my_model.task_list:
-                        self.writer.add_scalars("Performance_P/" + task, {"train": dic_train_PRF[task][0]}, epoch)
-                        self.writer.add_scalars("Performance_R/" + task, {"train": dic_train_PRF[task][1]}, epoch)
-                        self.writer.add_scalars("Performance_F/" + task, {"train": dic_train_PRF[task][2]}, epoch)
-                        self.writer.add_scalars("Loss/" + task, {"train": dic_train_loss[task]}, epoch)
-                        self.writer.add_scalars("Learning rate/" + task,
-                                                {task: getattr(self, "optimizer_" + str(task)).param_groups[0]["lr"]},
-                                                epoch)
-                    self.writer.add_scalars("Learning rate/bert_encoder_RC",
-                                            {"bert_encoder_RC": self.optimizer_bert_RC.param_groups[0]["lr"]}, epoch)
-
-                    # log_gradient_updates(self.writer, self.my_model, epoch)
-                    # log_parameter_and_gradient_statistics(self.my_model, self.writer, epoch)
-                    # self.writer.close()
-
-                if args.Inner_test_TAC_flag:
-                    print("test TAC...", end="")
-                    dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP = self.test_fn(
-                        args.Test_model_file)
-                else:
-                    dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(epoch)
-
+                    # Validating for all previous corpus
+                    corpus_name_valid = [corpus_list[i] for i in range(0, idx_corpus + 1)]
+                    self.set_iterator_for_specific_corpus(corpus_name_valid)
+                    dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(corpus_name_valid, 0)
                     dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
-                        = report_performance(epoch, self.my_model.task_list, dic_valid_loss, dic_batches_valid_res,
+                        = report_performance(corpus_name_valid, epoch, self.my_model.task_list, dic_valid_loss,
+                                             dic_batches_valid_res,
                                              self.my_model.classifiers_dic,
                                              self.sep_corpus_file_dic,
                                              args.Improve_Flag, "valid")
-                    if args.Tensorboard:
-                        for task in self.my_model.task_list:
-                            self.writer.add_scalars("Performance_P/" + task, {"valid": dic_valid_PRF[task][0]}, epoch)
-                            self.writer.add_scalars("Performance_R/" + task, {"valid": dic_valid_PRF[task][1]}, epoch)
-                            self.writer.add_scalars("Performance_F/" + task, {"valid": dic_valid_PRF[task][2]}, epoch)
-                            self.writer.add_scalars("Loss/" + task, {"valid": dic_valid_loss[task]}, epoch)
-                        self.writer.close()
 
-                if dic_valid_PRF[args.Task_list[-1]][2] >= maxF:
-                    early_stop_num = args.EARLY_STOP_NUM
-                    maxF = dic_valid_PRF[args.Task_list[-1]][2]
-                    record_best_dic = dic_valid_PRF
-                    save_epoch = epoch
-                    self.save_model(save_epoch)
+                    if dic_valid_PRF[args.Task_list[-1]][2] >= maxF:
+                        early_stop_num = args.EARLY_STOP_NUM
+                        maxF = dic_valid_PRF[args.Task_list[-1]][2]
+                        record_best_dic = dic_valid_PRF
+                        save_epoch = epoch
+                        self.save_model(save_epoch)
+                        file_detail_performance = f'../result/detail_performance/performance_{str(args.ID)}_{str(corpus_name_valid)}.txt'
+                        recored_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
+                                                   file_detail_performance,
+                                                   dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
+                                                   self.sep_corpus_file_dic, args.Task_list, corpus_name_valid,
+                                                   args.Average_Time)
+                    else:
+                        early_stop_num -= 1
 
-                    # record_pred_str_res(self.my_model.task_list, file_result, dic_batches_valid_res, average_num,
-                    #                     self.tokenizer_list[0].convert_ids_to_tokens, self.my_model.classifiers_dic,
-                    #                     args.IF_CRF)
+                    if early_stop_num <= 0:
+                        print()
+                        print("early stop, in epoch: %d !" % (int(save_epoch)))
+                        for task in args.Task_list:
+                            print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
+                        break
 
-                    recored_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
-                                               file_detail_performance,
-                                               dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
-                                               self.sep_corpus_file_dic, args.Task_list, corpus_list, args.Average_Time)
                 else:
-                    early_stop_num -= 1
+                    print("epoch: ", epoch)
+            print()
+            print("Reach max epoch: %d !" % (int(save_epoch)))
 
-                if early_stop_num <= 0:
-                    print()
-                    print("early stop, in epoch: %d !" % (int(save_epoch)))
-                    for task in args.Task_list:
-                        print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
-                    return record_best_dic
-
-            else:
-                print("epoch: ", epoch)
-        print()
-        print("Reach max epoch: %d !" % (int(save_epoch)))
-
-        for task in args.Task_list:
-            print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
-        self.save_model(save_epoch)
+            for task in args.Task_list:
+                print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
         return record_best_dic
 
-    def test_fn(self, file_model_save):
+    def test_fn(self, file_model_save_path):
+        print("=================================== Testing ========================================")
+        print(file_model_save_path)
+        print("Loading Model...")
+        checkpoint = torch.load(file_model_save_path)
+        self.my_model.load_state_dict(checkpoint['my_model'])
+        self.entity_type_rep_dic = checkpoint['epoch']
+        print("Loading success !")
 
-        if not args.Inner_test_TAC_flag:
-            print(file_model_save)
-            print("Loading Model...")
-            checkpoint = torch.load(file_model_save)
-            self.my_model.load_state_dict(checkpoint['my_model'])
-            self.entity_type_rep_dic = checkpoint['epoch']
-            print("Loading success !")
+        corpus_list = []
+        for corpus_name in args.Corpus_list:
+            corpus_list.append([corpus_name])
+        corpus_list.append([corpus_name for corpus_name in args.Corpus_list])
 
-        if args.Test_TAC_flag:
-            corpus_list = ["TAC2019"]
-        else:
-            corpus_list = args.Corpus_list
-
-        with torch.no_grad():
-            self.my_model.eval()
-            dic_batches_res = {"ID_list": [], "tokens_list": [], "entity_span": [], "entity_type": [],
-                               "entity_span_and_type": [], "relation": []}
-            epoch_entity_span_loss = 0
-            epoch_entity_type_loss = 0
-            epoch_entity_span_and_type_loss = 0
-            epoch_relation_loss = 0
-            count = 0
-            group_num = 1
-
-            if args.Training_way == "Multi_Task_continual_Training":
-                for group_number in range(group_num):
-                    for corpus_name in corpus_list:
-                        group_list_NER_RC = self.test_iterator_dic[0][group_number][corpus_name]
-                        if "relation" in args.Task_list:
-                            temp_my_iterator_list = [[ner, rc] for ner, rc in
-                                                     zip(group_list_NER_RC[0], group_list_NER_RC[1])]
-                        else:
-                            # only relation have a bug
-                            temp_my_iterator_list = [[i] for i in group_list_NER_RC[0]]
-
-                        for batch_list in temp_my_iterator_list:
-                            count += 1
-                            with torch.cuda.amp.autocast():
-                                dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list, 0,
-                                                                                              self.entity_type_rep_dic,
-                                                                                              "valid")
-                                batch_loss_list = []
-                                if "entity_span" in self.my_model.task_list:
-                                    batch_entity_span_loss = args.Task_weights_dic["entity_span"] * dic_loss_one_batch[
-                                        "entity_span"]
-                                    epoch_entity_span_loss += batch_entity_span_loss
-                                    batch_loss_list.append(batch_entity_span_loss)
-                                if "entity_type" in self.my_model.task_list and dic_loss_one_batch["entity_type"] is not None:
-                                    batch_entity_type_loss = args.Task_weights_dic["entity_type"] * dic_loss_one_batch[
-                                        "entity_type"]
-                                    epoch_entity_type_loss += batch_entity_type_loss
-                                    batch_loss_list.append(batch_entity_type_loss)
-                                if "entity_span_and_type" in self.my_model.task_list:
-                                    batch_entity_span_and_type_loss = args.Task_weights_dic["entity_span_and_type"] * \
-                                                                      dic_loss_one_batch["entity_span_and_type"]
-                                    epoch_entity_span_and_type_loss += batch_entity_span_and_type_loss
-                                    batch_loss_list.append(batch_entity_span_and_type_loss)
-                                if "relation" in self.my_model.task_list:
-                                    batch_relation_loss = args.Task_weights_dic["relation"] * dic_loss_one_batch[
-                                        "relation"]
-                                    epoch_relation_loss += batch_relation_loss
-                                    batch_loss_list.append(batch_relation_loss)
-
-                                dic_batches_res["ID_list"].append(batch_list[0].ID)
-                                dic_batches_res["tokens_list"].append(batch_list[0].tokens)
-                                for task in self.my_model.task_list:
-                                    try:
-                                        dic_batches_res[task].append(dic_res_one_batch[task])
-                                    except:
-                                        pass
-            elif args.Training_way == "Multi_Task_Training":
+        for corpus_name in corpus_list:
+            self.set_iterator_for_specific_corpus(corpus_name)
+            with torch.no_grad():
+                self.my_model.eval()
+                dic_batches_res = {"ID_list": [], "tokens_list": [], "entity_span": [], "entity_type": [],
+                                   "entity_span_and_type": [], "relation": []}
+                epoch_entity_span_loss = 0
+                epoch_entity_type_loss = 0
+                epoch_entity_span_and_type_loss = 0
+                epoch_relation_loss = 0
+                count = 0
 
                 if "relation" in args.Task_list:
-                    temp_my_iterator_list = [[ner, rc] for ner, rc in
-                                             zip(self.test_iterator_dic[0], self.test_iterator_dic[1])]
-                else:
-                    raise Exception("error!")
+                    temp_my_iterator_list = [[ner, rc] for ner, rc in zip(self.test_iterator_dic[0], self.test_iterator_dic[1])]
 
                 for batch_list in temp_my_iterator_list:
                     count += 1
                     with torch.cuda.amp.autocast():
                         dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list, 0,
-                                                                                      self.entity_type_rep_dic, "valid")
-
+                                                                                      self.entity_type_rep_dic,
+                                                                                      "valid")
                     batch_loss_list = []
                     if "entity_span" in self.my_model.task_list:
-                        # batch_entity_span_loss = args.Task_weights_dic["entity_span"] * dic_loss_one_batch["entity_span"]
-                        batch_entity_span_loss = dic_loss_one_batch["entity_span"]
+                        batch_entity_span_loss = args.Task_weights_dic["entity_span"] * dic_loss_one_batch[
+                            "entity_span"]
                         epoch_entity_span_loss += batch_entity_span_loss
                         batch_loss_list.append(batch_entity_span_loss)
                     if "entity_type" in self.my_model.task_list and dic_loss_one_batch["entity_type"] is not None:
-                        # batch_entity_type_loss =  args.Task_weights_dic["entity_type"] * dic_loss_one_batch["entity_type"]
-                        batch_entity_type_loss = dic_loss_one_batch["entity_type"]
+                        batch_entity_type_loss = args.Task_weights_dic["entity_type"] * dic_loss_one_batch["entity_type"]
                         epoch_entity_type_loss += batch_entity_type_loss
                         batch_loss_list.append(batch_entity_type_loss)
                     if "entity_span_and_type" in self.my_model.task_list:
-                        # batch_entity_span_and_type_loss = args.Task_weights_dic["entity_span_and_type"] * dic_loss_one_batch["entity_span_and_type"]
-                        batch_entity_span_and_type_loss = dic_loss_one_batch["entity_span_and_type"]
+                        batch_entity_span_and_type_loss = args.Task_weights_dic["entity_span_and_type"] * \
+                                                          dic_loss_one_batch["entity_span_and_type"]
                         epoch_entity_span_and_type_loss += batch_entity_span_and_type_loss
                         batch_loss_list.append(batch_entity_span_and_type_loss)
                     if "relation" in self.my_model.task_list:
-                        # batch_relation_loss = args.Task_weights_dic["relation"] * dic_loss_one_batch["relation"]
-                        batch_relation_loss = dic_loss_one_batch["relation"]
+                        batch_relation_loss = args.Task_weights_dic["relation"] * dic_loss_one_batch["relation"]
                         epoch_relation_loss += batch_relation_loss
                         batch_loss_list.append(batch_relation_loss)
 
@@ -733,40 +563,36 @@ class Train_valid_test:
                         try:
                             dic_batches_res[task].append(dic_res_one_batch[task])
                         except:
-                            pass  # nothing wrong
-            else:
-                raise Exception("Training_way error !")
+                            pass
 
-            epoch_loss = 0
-            dic_loss = {"average": 0}
-            if "entity_span" in self.my_model.task_list:
-                dic_loss["entity_span"] = epoch_entity_span_loss / count
-                epoch_loss += epoch_entity_span_loss / count
-            if "entity_type" in self.my_model.task_list:
-                dic_loss["entity_type"] = epoch_entity_type_loss / count
-                epoch_loss += epoch_entity_type_loss / count
-            if "entity_span_and_type" in self.my_model.task_list:
-                dic_loss["entity_span_and_type"] = epoch_entity_span_and_type_loss / count
-                epoch_loss += epoch_entity_span_and_type_loss / count
-            if "relation" in self.my_model.task_list:
-                dic_loss["relation"] = epoch_relation_loss / count
-                epoch_loss += epoch_relation_loss / count
+                epoch_loss = 0
+                dic_loss = {"average": 0}
+                if "entity_span" in self.my_model.task_list:
+                    dic_loss["entity_span"] = epoch_entity_span_loss / count
+                    epoch_loss += epoch_entity_span_loss / count
+                if "entity_type" in self.my_model.task_list:
+                    dic_loss["entity_type"] = epoch_entity_type_loss / count
+                    epoch_loss += epoch_entity_type_loss / count
+                if "entity_span_and_type" in self.my_model.task_list:
+                    dic_loss["entity_span_and_type"] = epoch_entity_span_and_type_loss / count
+                    epoch_loss += epoch_entity_span_and_type_loss / count
+                if "relation" in self.my_model.task_list:
+                    dic_loss["relation"] = epoch_relation_loss / count
+                    epoch_loss += epoch_relation_loss / count
 
-            dic_loss["average"] = epoch_loss / len(self.my_model.task_list)
+                dic_loss["average"] = epoch_loss / len(self.my_model.task_list)
 
             dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
-                = report_performance(0, self.my_model.task_list, dic_loss, dic_batches_res,
+                = report_performance(corpus_name, 0, self.my_model.task_list, dic_loss, dic_batches_res,
                                      self.my_model.classifiers_dic,
                                      self.sep_corpus_file_dic,
                                      args.Improve_Flag, "train")
 
-            if not args.Inner_test_TAC_flag:
-                recored_detail_performance(0, dic_total_sub_task_P_R_F, dic_test_PRF,
-                                           file_detail_performance.replace('.txt', "_TAC.txt"),
-                                           dic_corpus_task_micro_P_R_F, dic_TP_FN_FP,
-                                           self.sep_corpus_file_dic, args.Task_list, corpus_list, args.Average_Time)
-
-        return dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP
+            file_detail_performance = f'../result/detail_performance/performance_{str(args.ID)}_{str(corpus_name)}.txt'
+            recored_detail_performance(0, dic_total_sub_task_P_R_F, dic_test_PRF,
+                                       file_detail_performance.replace('.txt', "_TAC.txt"),
+                                       dic_corpus_task_micro_P_R_F, dic_TP_FN_FP,
+                                       self.sep_corpus_file_dic, args.Task_list, corpus_name, args.Average_Time)
 
 
 @print_execute_time
@@ -816,54 +642,49 @@ def get_valid_performance(model_path):
                                [my_entity_span_classifier, my_entity_type_classifier,
                                 my_entity_span_and_type_classifier, my_relation_classifier]))
 
-    train_iterator_list = []
-    valid_iterator_list = []
-    test_iterator_list = []
+    train_set_list = []
+    valid_set_list = []
+    test_set_list = []
 
     # for index, (corpus_name, (entity_type_num_list, relation_num_list, file_train_valid_test_list)) in enumerate(corpus_file_dic.items()):
     corpus_name = list(corpus_file_dic.keys())[0]
     entity_type_num_list, relation_num_list, file_train_valid_test_list = corpus_file_dic[corpus_name]
     print("===============" + corpus_name + "===============")
 
-    NER_train_iterator, NER_valid_iterator, NER_test_iterator, NER_TOKENS_fields, TAGS_Entity_Span_fields_dic, \
+    NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Span_fields_dic, \
         TAGS_Entity_Type_fields_dic, TAGS_Entity_Span_And_Type_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic \
         = prepared_NER_data(args.BATCH_SIZE, device, tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
 
-    train_iterator_list.append(NER_train_iterator)
-    valid_iterator_list.append(NER_test_iterator)
-    test_iterator_list.append(NER_test_iterator)
+    train_set_list.append(NER_train_set)
+    valid_set_list.append(NER_valid_set)
+    test_set_list.append(NER_test_set)
 
     my_entity_span_classifier.create_classifers(TAGS_Entity_Span_fields_dic)
     my_entity_type_classifier.create_classifers(TAGS_Entity_Type_fields_dic, TAGS_sep_entity_fields_dic)
     my_entity_span_and_type_classifier.create_classifers(TAGS_Entity_Span_And_Type_fields_dic)
 
     if "relation" in args.Task_list:
-        RC_train_iterator, RC_valid_iterator, RC_test_iterator, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
+        RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
             = prepared_RC_data(args.BATCH_SIZE, device, tokenizer_RC, file_train_valid_test_list, relation_num_list)
-        my_relation_classifier.create_classifers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_Entity_Type_fields_dic)
+        my_relation_classifier.create_classifers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
+                                                 TAGS_Entity_Type_fields_dic)
 
-        train_iterator_list.append(RC_train_iterator)
-        valid_iterator_list.append(RC_test_iterator)
-        test_iterator_list.append(RC_test_iterator)
+        train_set_list.append(RC_train_set)
+        valid_set_list.append(RC_valid_set)
+        test_set_list.append(RC_test_set)
 
     my_model.add_classifers(classifiers_dic, args.Task_list)
     ema = EMA(my_model, 0.999, device)
     ema.register()
 
     my_train_valid_test = Train_valid_test(data_ID_2_corpus_dic, my_model, tokenizer_list,
-                                           train_iterator_list, valid_iterator_list, test_iterator_list,
+                                           train_set_list, valid_set_list, test_set_list,
                                            sep_corpus_file_dic, ema, writer)
     Average_Time_list = []
     for i in range(args.Average_Time):
         print("==========================" + str(i) + "=================================================")
-        if not args.Test_flag:
-            dic_res_PRF = my_train_valid_test.train_valid_fn(i)
-        elif args.Test_flag and args.Inner_test_TAC_flag:
-            dic_res_PRF = my_train_valid_test.train_valid_fn(i)
-        elif args.Test_flag and not args.Inner_test_TAC_flag:
-            dic_res_PRF = my_train_valid_test.test_fn(args.Test_model_file)
-        else:
-            raise Exception("test choose error !")
+        dic_res_PRF = my_train_valid_test.train_valid_fn(i)
+        my_train_valid_test.test_fn(file_model_save)
         Average_Time_list.append(dic_res_PRF)  # increasing train cause wrong there !!
 
     record_each_performance(file_param_record, args.Task_list, Average_Time_list)
@@ -907,8 +728,4 @@ if __name__ == "__main__":
     print("Training_way:", args.Training_way)
     print("Group_num:", args.Group_num)
 
-    # print("Weight_Loss:", args.Weight_Loss)
-    # if args.Weight_Loss:
-    #     print("Min_weight:", args.Min_weight)
-    #     print("Max_weight:", args.Max_weight)
     get_valid_performance(args.model_path)
