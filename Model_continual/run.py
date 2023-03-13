@@ -89,7 +89,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 warnings.filterwarnings("ignore")
 
 file_param_record = '../result/param_record'
-# file_detail_performance = '../result/detail_performance/performance_' + str(sys.argv[1:]) + '.txt'
 file_result = '../result/detail_results/result_' + str(sys.argv[1:]) + '.json'
 file_model_save = "../result/save_model/" + "Model_" + str(sys.argv[1:])
 file_training_performance = '../result/detail_training/training_' + str(sys.argv[1:]) + '.txt'
@@ -140,7 +139,7 @@ import torch.optim as optim
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
-device = torch.device("cpu")
+device = torch.device("cuda")
 OPTIMIZER = eval("optim." + args.Optim)
 Embedding_requires_grad = True
 BATCH_FIRST = True
@@ -477,7 +476,8 @@ class Train_valid_test:
                         record_best_dic = dic_valid_PRF
                         save_epoch = epoch
                         self.save_model(save_epoch)
-                        file_detail_performance = f'../result/detail_performance/performance_{str(args.ID)}_{str(corpus_name_valid)}.txt'
+                        file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/performance_{str(corpus_name_valid)}.txt'
+                        os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
                         recored_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
                                                    file_detail_performance,
                                                    dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
@@ -500,9 +500,11 @@ class Train_valid_test:
 
             for task in args.Task_list:
                 print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
+
+            self.test_fn(idx_corpus, file_model_save)
         return record_best_dic
 
-    def test_fn(self, file_model_save_path):
+    def test_fn(self, idx_corpus, file_model_save_path):
         print("=================================== Testing ========================================")
         print(file_model_save_path)
         print("Loading Model...")
@@ -511,10 +513,13 @@ class Train_valid_test:
         self.entity_type_rep_dic = checkpoint['epoch']
         print("Loading success !")
 
+        current_corpus_list = copy.deepcopy(args.Corpus_list)
+        current_corpus_list = current_corpus_list[:(idx_corpus + 1)]
+
         corpus_list = []
-        for corpus_name in args.Corpus_list:
+        for corpus_name in current_corpus_list:
             corpus_list.append([corpus_name])
-        corpus_list.append([corpus_name for corpus_name in args.Corpus_list])
+        corpus_list.append([corpus_name for corpus_name in current_corpus_list])
 
         for corpus_name in corpus_list:
             self.set_iterator_for_specific_corpus(corpus_name)
@@ -588,7 +593,8 @@ class Train_valid_test:
                                      self.sep_corpus_file_dic,
                                      args.Improve_Flag, "train")
 
-            file_detail_performance = f'../result/detail_performance/performance_{str(args.ID)}_{str(corpus_name)}.txt'
+            file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/{idx_corpus}/performance_{str(corpus_name)}.txt'
+            os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
             recored_detail_performance(0, dic_total_sub_task_P_R_F, dic_test_PRF,
                                        file_detail_performance.replace('.txt', "_TAC.txt"),
                                        dic_corpus_task_micro_P_R_F, dic_TP_FN_FP,
@@ -684,7 +690,6 @@ def get_valid_performance(model_path):
     for i in range(args.Average_Time):
         print("==========================" + str(i) + "=================================================")
         dic_res_PRF = my_train_valid_test.train_valid_fn(i)
-        my_train_valid_test.test_fn(file_model_save)
         Average_Time_list.append(dic_res_PRF)  # increasing train cause wrong there !!
 
     record_each_performance(file_param_record, args.Task_list, Average_Time_list)
