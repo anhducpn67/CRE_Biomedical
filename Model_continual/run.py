@@ -295,6 +295,12 @@ class Train_valid_test:
         else:
             raise Exception("error!")
 
+        if valid_test_flag == "train":
+            total_examples = 0
+            for batch_list in temp_my_iterator_list:
+                total_examples += len(batch_list[0])
+            print(f"Corpus {corpus_name}, Total examples {total_examples}")
+
         for batch_list in temp_my_iterator_list:
             count += 1
             with torch.cuda.amp.autocast():
@@ -437,8 +443,8 @@ class Train_valid_test:
             maxF = 0
             save_epoch = 0
             early_stop_num = args.EARLY_STOP_NUM
-            self.set_iterator_for_specific_corpus([corpus_name])
             for epoch in range(0, args.EPOCH + 1):
+                self.set_iterator_for_specific_corpus([corpus_name])
                 dic_train_loss, dic_batches_train_res = self.one_epoch_train(corpus_name, epoch)
                 if epoch >= args.Min_train_performance_Report:
                     report_performance(corpus_name, epoch, self.my_model.task_list, dic_train_loss,
