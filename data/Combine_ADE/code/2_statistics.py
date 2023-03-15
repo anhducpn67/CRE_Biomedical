@@ -46,6 +46,7 @@ def statistics_corpus_entity(file_path):
     print("total entity num:", total_entity_num)
 
 
+print("="*30, "REAL", "="*30)
 train_file = "../BIOES/base/Combine_ADE_train_base_model_data.json"
 valid_file = "../BIOES/base/Combine_ADE_valid_base_model_data.json"
 test_file = "../BIOES/base/Combine_ADE_test_base_model_data.json"
@@ -54,4 +55,15 @@ for file in file_list:
     print("*****", file)
     statistics_corpus_entity(file)
     statistics_corpus_relation(file)
-    print("="*50)
+    print("-"*50)
+
+print("="*30, "TEST", "="*30)
+train_file = "../BIOES/base/test/Combine_ADE_train_base_model_data.json"
+valid_file = "../BIOES/base/test/Combine_ADE_valid_base_model_data.json"
+test_file = "../BIOES/base/test/Combine_ADE_test_base_model_data.json"
+file_list = [train_file, valid_file, test_file]
+for file in file_list:
+    print("*****", file)
+    statistics_corpus_entity(file)
+    statistics_corpus_relation(file)
+    print("-"*50)
