@@ -50,7 +50,7 @@ parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last 
 
 parser.add_argument('--Average_Time', default=1, type=int)
 parser.add_argument('--EPOCH', default=100, type=int)
-parser.add_argument('--Min_train_performance_Report', default=20, type=int)
+parser.add_argument('--Min_train_performance_Report', default=10, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=20, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
@@ -615,8 +615,8 @@ def get_valid_performance(model_path):
 
     make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
                     args.All_data)
-    data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE", "55555": "PPI", "66666": "BioInfer"}
-
+    data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
+                            "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
     bert_NER = transformers.BertModel.from_pretrained(model_path)
     tokenizer_NER = transformers.BertTokenizer.from_pretrained(model_path)
 
