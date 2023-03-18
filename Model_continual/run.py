@@ -726,6 +726,7 @@ if __name__ == "__main__":
     print("If_add_prototype:", args.If_add_prototype)
     print("Entity_Prep_Way:", args.Entity_Prep_Way)
     print("If_soft_share:", args.If_soft_share)
+    print("Only_relation:", args.Only_relation)
     print("Task_weights_dic:", end="")
     for task in args.Task_list:
         print(args.Task_weights_dic[task], end=" ")

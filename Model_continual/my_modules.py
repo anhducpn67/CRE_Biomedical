@@ -636,7 +636,7 @@ class My_Model(nn.Module):
                 gold_input_ratio = -1
 
             random_ratio = np.random.uniform(0, 1)
-            # gold_input_ratio = 10
+            gold_input_ratio = 10
 
             if gold_input_ratio > random_ratio:
                 if self.args.Relation_input == "entity_span" or self.args.Relation_input == "entity_span_and_type":
