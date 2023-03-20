@@ -365,7 +365,7 @@ class My_Relation_Classifier(nn.Module):
                     batch_entity[sent_index][entity_index].append(span[-1] + 2)
 
                     # need batch_span is in order in entity list
-                    batch_entity[sent_index][entity_index+1:] = [ [j+2 for j in i] for i in batch_entity[sent_index][entity_index+1:]]
+                    batch_entity[sent_index][entity_index+1:] = [[j+2 for j in i] for i in batch_entity[sent_index][entity_index+1:]]
                     batch_entity[sent_index][entity_index][1:-1] = [i+1 for i in batch_entity[sent_index][entity_index][1:-1]]
                 batch_tokens_marker.append(torch.tensor(temp_token_list, device=self.device))
 
@@ -508,6 +508,67 @@ class My_Relation_Classifier(nn.Module):
                                           weight=self.loss_weight[sub_task_index], reduction='mean')
             loss_list.append(fel_ce_loss)
         return sum(loss_list) / len(loss_list)
+
+    def memory_get_entity_pair_span_vec(self, batch_entity, batch_tokens, batch_entity_type, batch_gold_RE, bert_RC, Entity_type_TAGS_Types_fileds_dic):
+        padding_value = self.tokenizer_RC.vocab['[PAD]']
+        encoder_hidden_states = None
+
+        raw_batch_entity = copy.deepcopy(batch_entity)
+        batch_tokens_marker = []
+        for sent_index, (one_sent_tokens, one_sent_span, one_sent_type) in enumerate(zip(batch_tokens, batch_entity, batch_entity_type)):
+            temp_token_list = one_sent_tokens.tolist()
+            for entity_index, (span, type) in enumerate(zip(one_sent_span, one_sent_type)):
+                temp_token_list.insert(span[0], self.tokenizer_RC.convert_tokens_to_ids("[Entity_"+type+"]"))
+                temp_token_list.insert(span[-1]+2, self.tokenizer_RC.convert_tokens_to_ids("[/Entity_"+type+"]"))
+
+                batch_entity[sent_index][entity_index].insert(0, span[0])
+                batch_entity[sent_index][entity_index].append(span[-1] + 2)
+
+                # need batch_span is in order in entity list
+                batch_entity[sent_index][entity_index+1:] = [[j+2 for j in i] for i in batch_entity[sent_index][entity_index+1:]]
+                batch_entity[sent_index][entity_index][1:-1] = [i+1 for i in batch_entity[sent_index][entity_index][1:-1]]
+            batch_tokens_marker.append(torch.tensor(temp_token_list, device=self.device))
+
+        common_embedding = bert_RC(pad_sequence(batch_tokens_marker, batch_first=True, padding_value=padding_value),
+                                   encoder_hidden_states=encoder_hidden_states)[0]
+
+        batch_entity_pair_span_list = []
+        batch_entity_pair_vec_list = []
+        batch_sent_len_list = []
+
+        for sent_index, (raw_one_sent_entity, one_sent_entity, one_sent_type) in enumerate(zip(raw_batch_entity, batch_entity, batch_entity_type)):
+            temp_sent_entity_pair_span_list = list(combinations(one_sent_entity, 2))
+            temp_sent_entity_pair_span_list = [sorted(i) for i in temp_sent_entity_pair_span_list]
+
+            temp_raw_sent_entity_pair_span_list = list(combinations(raw_one_sent_entity, 2))
+            temp_raw_sent_entity_pair_span_list = [sorted(i) for i in temp_raw_sent_entity_pair_span_list]
+
+            sent_entity_pair_span_list = []
+            raw_sent_entity_pair_span_list = []
+            for idx, entity_pair_span in enumerate(temp_raw_sent_entity_pair_span_list):
+                if entity_pair_span in batch_gold_RE[sent_index]:
+                    sent_entity_pair_span_list.append(temp_sent_entity_pair_span_list[idx])
+                    raw_sent_entity_pair_span_list.append(temp_raw_sent_entity_pair_span_list[idx])
+            batch_sent_len_list.append(len(sent_entity_pair_span_list))
+
+            batch_entity_pair_span_list.append(raw_sent_entity_pair_span_list)
+
+            sent_entity_pair_rep_list = []
+            if sent_entity_pair_span_list:
+                for entity_pair_span in sent_entity_pair_span_list:
+                    one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index],
+                                                            Entity_type_TAGS_Types_fileds_dic)
+                    sent_entity_pair_rep_list.append(one_sent_rep)
+            else:
+                sent_entity_pair_rep_list.append(torch.tensor([0] * self.relation_input_dim * 2).float().to(self.device))
+
+            batch_entity_pair_vec_list.append(torch.stack(sent_entity_pair_rep_list))
+
+        batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list, batch_first=True, padding_value=padding_value)
+
+        batch_added_marker_entity_span_vec = self.linear_transform(batch_added_marker_entity_span_vec)
+
+        return batch_added_marker_entity_span_vec, batch_entity_pair_span_list, batch_sent_len_list
 
 
 class My_Model(nn.Module):
