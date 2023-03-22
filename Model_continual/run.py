@@ -1,5 +1,6 @@
 #!/usr/bin/python3.7
 # -*- coding: utf-8 -*-
+import pickle
 import warnings
 import sys
 import shutil
@@ -50,9 +51,9 @@ parser.add_argument('--If_soft_share', action='store_true', default=False)  # Tr
 parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=100, type=int)
+parser.add_argument('--EPOCH', default=30, type=int)
 parser.add_argument('--Min_train_performance_Report', default=10, type=int)
-parser.add_argument('--EARLY_STOP_NUM', default=20, type=int)
+parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
 parser.add_argument('--LR_min_bert', default=1e-6, type=float)
@@ -492,14 +493,26 @@ class Train_valid_test:
                                        self.sep_corpus_file_dic,
                                        args.Improve_Flag, "train")
 
-                    # Validating for current corpus
-                    dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid([corpus_name], 0)
-                    dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
-                        = report_performance(corpus_name, epoch, self.my_model.task_list, dic_valid_loss,
-                                             dic_batches_valid_res,
-                                             self.my_model.classifiers_dic,
-                                             self.sep_corpus_file_dic,
-                                             args.Improve_Flag, "valid")
+                    # Validating for each previous corpus
+                    for i in range(0, idx_corpus + 1):
+                        corpus_name_valid = corpus_list[i]
+                        self.set_iterator_for_specific_corpus([corpus_name_valid])
+                        dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(corpus_name_valid, 0)
+                        dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
+                            = report_performance(corpus_name_valid, epoch, self.my_model.task_list, dic_valid_loss,
+                                                 dic_batches_valid_res,
+                                                 self.my_model.classifiers_dic,
+                                                 self.sep_corpus_file_dic,
+                                                 args.Improve_Flag, "valid")
+
+                    # # Validating for current corpus
+                    # dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid([corpus_name], 0)
+                    # dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
+                    #     = report_performance(corpus_name, epoch, self.my_model.task_list, dic_valid_loss,
+                    #                          dic_batches_valid_res,
+                    #                          self.my_model.classifiers_dic,
+                    #                          self.sep_corpus_file_dic,
+                    #                          args.Improve_Flag, "valid")
 
                     if dic_valid_PRF[args.Task_list[-1]][2] >= maxF:
                         early_stop_num = args.EARLY_STOP_NUM
@@ -533,6 +546,7 @@ class Train_valid_test:
 
             # ======================== Create memorized samples for current task ========================
             print(f"==================== Create memorized samples for {corpus_name} ====================")
+            self.set_iterator_for_specific_corpus([corpus_name])
             temp_my_iterator_list = [[ner, rc] for ner, rc in
                                      zip(self.train_iterator_dic[0], self.train_iterator_dic[1])]
             all_embedding_representations = []
@@ -598,7 +612,9 @@ class Train_valid_test:
                         all_embedding_representations.append((embed, ID_example))
 
             self.memorized_samples[corpus_name] = select_data(all_embedding_representations)
+            print(f"Number representation: ", len(all_embedding_representations))
             print(f"Number examples in memorized samples {corpus_name}: ", len(self.memorized_samples[corpus_name]))
+            pickle.dump(self.memorized_samples, open("memorized_samples.pkl", "wb"))
 
             # ======================== Training with memorized_samples ========================
             if idx_corpus >= 1:  # Skip first task
