@@ -1,23 +1,29 @@
 #!/usr/bin/python3.7
 # -*- coding: utf-8 -*-
-import argparse
-import copy
-import math
-import os
 import pickle
-import shutil
-import sys
 import warnings
-
+import sys
+import shutil
+import argparse
+import os
+import math
+import copy
+import random
 import numpy as np
 import torchtext
 from sklearn.cluster import KMeans
 
-from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
+from utils import print_execute_time, get_sent_len, Logger, record_each_performance, recored_detail_performance, \
+    EMA, get_entity_type_rep_dic, log_gradient_updates, log_parameter_and_gradient_statistics
 from metric import report_performance
 from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Entity_Span_And_Type_Classifier, \
     My_Relation_Classifier, My_Bert_Encoder, My_Model
-from utils import print_execute_time, Logger, record_each_performance, recored_detail_performance, EMA
+from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
+
+from torch.utils.tensorboard import SummaryWriter
+import torch
+import transformers
+import torch.optim as optim
 
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
@@ -49,9 +55,9 @@ parser.add_argument('--If_soft_share', action='store_true', default=False)  # Tr
 parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=30, type=int)
-parser.add_argument('--Min_train_performance_Report', default=10, type=int)
-parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
+parser.add_argument('--EPOCH', default=100, type=int)
+parser.add_argument('--Min_train_performance_Report', default=20, type=int)
+parser.add_argument('--EARLY_STOP_NUM', default=10, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
 parser.add_argument('--LR_min_bert', default=1e-6, type=float)
@@ -469,8 +475,14 @@ class Train_valid_test:
     @print_execute_time
     def train_valid_fn(self):
         corpus_list = copy.deepcopy(args.Corpus_list)
+        print(file_model_save)
+        print("Loading Model...")
+        checkpoint = torch.load(file_model_save)
+        self.my_model.load_state_dict(checkpoint['my_model'])
+        self.entity_type_rep_dic = checkpoint['epoch']
+        print("Loading success !")
         print("==================== Loading memorized_samples ====================")
-        self.memorized_samples = pickle.load(open("../result/save_memorized_samples/memory_samples.pkl", "rb"))
+        self.memorized_samples = pickle.load(open("../result/save_memorized_samples/memorized_samples.pkl", "rb"))
         print("==================== Training with memorized_samples ====================")
         maxF = 0
         save_epoch = 0
@@ -494,7 +506,7 @@ class Train_valid_test:
                     record_best_dic = dic_valid_PRF
                     save_epoch = epoch
                     self.save_model(save_epoch)
-                    file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/performance_memory_{str(corpus_list)}.txt'
+                    file_detail_performance = f'../result/detail_performance/memory_continual_{str(args.ID)}/performance_memory_{str(corpus_list)}.txt'
                     os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
                     recored_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
                                                file_detail_performance,
