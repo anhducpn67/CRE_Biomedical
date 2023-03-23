@@ -543,7 +543,7 @@ class Train_valid_test:
 
             for task in args.Task_list:
                 print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
-
+            shutil.copy(file_model_save, file_model_save + "_" + corpus_name)
             # ======================== Create memorized samples for current task ========================
             print(f"==================== Create memorized samples for {corpus_name} ====================")
             self.set_iterator_for_specific_corpus([corpus_name])
@@ -885,12 +885,10 @@ if __name__ == "__main__":
         print(args.Task_weights_dic[task], end=" ")
     print()
     print("Loss:", args.Loss)
-    print("Group_num:", args.Group_num)
     print("EARLY_STOP_NUM:", args.EARLY_STOP_NUM)
     print("Test_flag:", args.Test_flag)
     print("Test_TAC_flag:", args.Test_TAC_flag)
     print("Inner_test_TAC_flag:", args.Inner_test_TAC_flag)
     print("Training_way:", args.Training_way)
-    print("Group_num:", args.Group_num)
 
     get_valid_performance(args.model_path)
