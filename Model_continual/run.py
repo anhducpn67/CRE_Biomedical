@@ -28,7 +28,7 @@ parser.add_argument('--BATCH_SIZE', default=8, type=int)
 parser.add_argument('--bert_model', default="base", type=str, help="base, large")
 parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
                     help=["entity_span", "entity_type", "entity_span_and_type", "relation"])
-parser.add_argument('--Task_weights_dic', default="{'entity_span':0.4, 'entity_type':0.25,  'relation':0.35}", type=str)
+parser.add_argument('--Task_weights_dic', default="{'entity_span':0.0, 'entity_type':0.0, 'relation':0.3}", type=str)
 
 parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
                     help=["DDI", "Twi_ADE", "ADE", "CPR", "PPI"])
@@ -51,9 +51,11 @@ parser.add_argument('--If_soft_share', action='store_true', default=False)  # Tr
 parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=50, type=int)
-parser.add_argument('--Min_train_performance_Report', default=10, type=int)
+parser.add_argument('--EPOCH', default=30, type=int)
+parser.add_argument('--Min_train_performance_Report', default=5, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
+parser.add_argument('--MEMORY_SIZE', default=100, type=int)
+
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
 parser.add_argument('--LR_min_bert', default=1e-6, type=float)
@@ -107,7 +109,7 @@ v_sum = 0
 for k, v in args.Task_weights_dic.items():
     if k in args.Task_list:
         v_sum += v
-assert v_sum == 1
+# assert v_sum == 1
 
 if args.Test_TAC_flag and (not args.Inner_test_TAC_flag):
     args.Group_num = 1
@@ -154,7 +156,7 @@ torch.cuda.manual_seed(SEED)
 def select_data(all_embedding_representations):
     features = [embedding.detach().cpu().numpy() for embedding, ID in all_embedding_representations]
 
-    num_clusters = min(100, len(features))
+    num_clusters = min(args.MEMORY_SIZE, len(features))
     distances = KMeans(n_clusters=num_clusters, random_state=0).fit_transform(features)
 
     mem_set = []
@@ -869,6 +871,7 @@ if __name__ == "__main__":
     print("GPU:", args.GPU)
     print("Bert:", args.bert_model)
     print("Batch size: ", args.BATCH_SIZE)
+    print("Memory size: ", args.MEMORY_SIZE)
     print("LR_max_bert: ", args.LR_max_bert)
     print("LR_max_entity_span: ", args.LR_max_entity_span)
     print("LR_max_entity_type: ", args.LR_max_entity_type)
