@@ -576,15 +576,10 @@ class My_Model(nn.Module):
         super(My_Model, self).__init__()
         self.to(device)
         self.device = device
-        self.bert_NER = bert_list[0]
-        if "relation" in args.Task_list:
-            self.bert_RC = bert_list[1]
+        self.bert_RC = bert_list[1]
         self.task_list = args.Task_list
         self.IF_CRF = args.IF_CRF
         self.args = args
-        if self.args.Share_embedding:
-            # self.bert_RC.bert.embeddings.word_embeddings.weight.data = copy.deepcopy(self.bert_NER.bert.embeddings.word_embeddings.weight.data).detach()
-            self.bert_RC.bert.embeddings.word_embeddings = self.bert_NER.bert.embeddings.word_embeddings
 
     def add_classifers(self, classifiers_dic, task_list):
         self.classifiers_dic = {}
@@ -737,71 +732,32 @@ class My_Model(nn.Module):
         dic_loss_one_batch = {}
 
         batch_NER = batch_list[0]
-        # RC_common_embedding == common_embedding_NER if Pick_lay_num=-1
-        RC_common_embedding, common_embedding_NER = self.bert_NER(batch_NER.tokens)
 
-        if "entity_span" in self.task_list:
-            batch_gold_and_pred_entity_res, entity_span_batch_loss = self.entity_span_extraction(batch_NER, common_embedding_NER)
-            dic_res_one_batch["entity_span"] = batch_gold_and_pred_entity_res
-            dic_loss_one_batch["entity_span"] = entity_span_batch_loss
+        batch_gold_and_pred_entity_res, entity_span_batch_loss = self.entity_span_extraction(batch_NER)
+        dic_res_one_batch["entity_span"] = batch_gold_and_pred_entity_res
+        dic_loss_one_batch["entity_span"] = entity_span_batch_loss
 
-        if "entity_type" in self.task_list:
-            batch_entity_vec_list, batch_entity_token_span_list = self.get_entity_type_data(batch_NER,
-                                                                                            common_embedding_NER,
-                                                                                            valid_test_flag,
-                                                                                            dic_res_one_batch, epoch)
-            batch_gold_and_pred_entity_type_res, one_batch_entity_type_loss = self.entity_type_extraction(batch_NER,
-                                                                                                          batch_entity_vec_list,
-                                                                                                          batch_entity_token_span_list)
-            dic_res_one_batch["entity_type"] = batch_gold_and_pred_entity_type_res
-            dic_loss_one_batch["entity_type"] = one_batch_entity_type_loss
+        batch_gold_and_pred_entity_type_res, one_batch_entity_type_loss = self.entity_type_extraction(batch_NER)
+        dic_res_one_batch["entity_type"] = batch_gold_and_pred_entity_type_res
+        dic_loss_one_batch["entity_type"] = one_batch_entity_type_loss
 
-        if "entity_span_and_type" in self.task_list:
-            sub_task_batch_gold_and_pred_entity_span_and_type_res, batch_entity_span_and_type_loss = self.entity_span_and_type_extraction(
-                batch_NER, common_embedding_NER)
-            dic_res_one_batch["entity_span_and_type"] = sub_task_batch_gold_and_pred_entity_span_and_type_res
-            dic_loss_one_batch["entity_span_and_type"] = batch_entity_span_and_type_loss
+        batch_RC = batch_list[1]
 
-        if "relation" in self.task_list:
-            batch_RC = batch_list[1]
-
-            batch_entity, batch_entity_type = self.get_relation_data(batch_RC, valid_test_flag, dic_res_one_batch, epoch)
-            one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch_RC, batch_entity,
-                                                                                       batch_entity_type,
-                                                                                       entity_type_rep_dic,
-                                                                                       common_embedding_NER)
-            dic_res_one_batch["relation"] = one_batch_relation_res
-            dic_loss_one_batch["relation"] = one_batch_relation_loss
+        batch_entity, batch_entity_type = self.get_relation_data(batch_RC, valid_test_flag, dic_res_one_batch, epoch)
+        one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch_RC, batch_entity,
+                                                                                   batch_entity_type,
+                                                                                   entity_type_rep_dic,
+                                                                                   None)
+        dic_res_one_batch["relation"] = one_batch_relation_res
+        dic_loss_one_batch["relation"] = one_batch_relation_loss
 
         return dic_loss_one_batch, dic_res_one_batch
 
-    def entity_span_extraction(self, batch, common_embedding):
+    def entity_span_extraction(self, batch):
         """ Entity span extraction (for only span, my_ensembled_relation_classifier = one classifier) """
-        res_dict, res_list, sub_task = self.my_entity_span_classifier(common_embedding, self.IF_CRF)
-        if self.IF_CRF:
-            entity_span_batch_loss = self.my_entity_span_classifier.get_ensembled_CRF_loss(res_list, [batch.entity_span])[0]
-            one_batch_pred_res = res_list[0].squeeze(2)
-        else:
-            entity_span_batch_loss = self.my_entity_span_classifier.get_ensembled_ce_loss(res_list[0], batch.entity_span)
-            one_batch_pred_res = torch.argmax(res_list[0], 2)
-        return (batch.entity_span.tolist(), one_batch_pred_res), entity_span_batch_loss
+        return (batch.entity_span.tolist(), None), torch.tensor(0.0).cuda()
 
-    def entity_type_extraction(self, batch, batch_entity_vec_list, batch_entity_token_span_list):
-
-        batch_pred_raw_res_list, batch_pred_for_loss_sub_task_tensor = self.my_entity_type_classifier(batch_entity_vec_list, self.IF_CRF)
-
-        batch_pred_res_list = []
-        for sent_index in range(len(batch)):
-            pred_one_sent_all_sub_task_res_dic = {}
-            for sub_task_index, sub_task in enumerate(self.my_entity_type_classifier.my_entity_type_sub_task_list):
-                pred_one_sent_all_sub_task_res_dic.setdefault(sub_task, [])
-                for entity_span, pred_type, entity_vec in zip(batch_entity_token_span_list[sent_index],
-                                                              batch_pred_raw_res_list[sent_index],
-                                                              batch_entity_vec_list[sent_index]):
-                    if pred_type == sub_task_index:
-                        pred_one_sent_all_sub_task_res_dic[sub_task].append(eval(entity_span))
-            batch_pred_res_list.append(pred_one_sent_all_sub_task_res_dic)
-
+    def entity_type_extraction(self, batch):
         batch_gold_res_list = []
         for sent_index in range(len(batch)):
             gold_one_sent_all_sub_task_res_dic = {}
@@ -815,16 +771,8 @@ class My_Model(nn.Module):
                             gold_one_sent_all_sub_task_res_dic[sub_task].append(temp_pair)
             batch_gold_res_list.append(gold_one_sent_all_sub_task_res_dic)
 
-        batch_gold_for_loss_sub_task_tensor = self.my_entity_type_classifier.make_pred_gold_for_loss(
-            batch_gold_res_list, batch_entity_token_span_list,
-            self.my_entity_type_classifier.TAGS_my_types_classification.vocab)
-
-        one_batch_entity_type_loss = self.my_entity_type_classifier.get_ensembled_ce_loss(
-            batch_pred_for_loss_sub_task_tensor, batch_gold_for_loss_sub_task_tensor,
-            self.my_entity_type_classifier.ignore_index, weight=None)
-
-        batch_gold_and_pred_entity_type_res = (batch_gold_res_list, batch_pred_res_list)
-        return batch_gold_and_pred_entity_type_res, one_batch_entity_type_loss
+        batch_gold_and_pred_entity_type_res = (batch_gold_res_list, None)
+        return batch_gold_and_pred_entity_type_res, torch.tensor(0.0).cuda()
 
     def entity_span_and_type_extraction(self, batch, common_embedding):
 
