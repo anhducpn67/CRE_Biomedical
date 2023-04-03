@@ -49,9 +49,9 @@ parser.add_argument('--If_soft_share', action='store_true', default=False)  # Tr
 parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=100, type=int)
-parser.add_argument('--Min_train_performance_Report', default=10, type=int)
-parser.add_argument('--EARLY_STOP_NUM', default=20, type=int)
+parser.add_argument('--EPOCH', default=30, type=int)
+parser.add_argument('--Min_train_performance_Report', default=5, type=int)
+parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
 parser.add_argument('--LR_min_bert', default=1e-6, type=float)
@@ -188,15 +188,12 @@ class Train_valid_test:
                                               'Drug_Drug_interaction', 'Gene_Gene_interaction']]
         self.false_flag = False
 
-        self.optimizer_bert_NER = OPTIMIZER(
-            params=filter(lambda p: p.requires_grad, self.my_model.bert_NER.parameters()), lr=args.LR_max_bert,
-            weight_decay=args.L2)
         if "relation" in args.Task_list:
             self.optimizer_bert_RC = OPTIMIZER(
                 params=filter(lambda p: p.requires_grad, self.my_model.bert_RC.parameters()), lr=args.LR_max_bert,
                 weight_decay=args.L2)
 
-        for task in self.my_model.task_list:
+        for task in ["relation"]:
             # set tasks optim
             my_parameters = getattr(self.my_model, "my_" + task + "_classifier").parameters()
             my_lr_min = getattr(args, "LR_min_" + str(task))
@@ -352,14 +349,12 @@ class Train_valid_test:
                     torch.stack(batch_loss_list))
 
                 batch_loss.backward()
-                self.optimizer_bert_NER.step()
-                self.optimizer_bert_NER.zero_grad()
 
                 if "relation" in args.Task_list:
                     self.optimizer_bert_RC.step()
                     self.optimizer_bert_RC.zero_grad()
 
-                for task in self.my_model.task_list:
+                for task in ["relation"]:
                     getattr(self, "optimizer_" + str(task)).step()
                     getattr(self, "optimizer_" + str(task)).zero_grad()
                 # self.ema.update()
@@ -474,7 +469,7 @@ class Train_valid_test:
             for epoch in range(0, args.EPOCH + 1):
                 dic_train_loss, dic_batches_train_res = self.one_epoch_train(corpus_name_list, epoch)
                 if epoch >= args.Min_train_performance_Report:
-                    report_performance(corpus_name_list, epoch, self.my_model.task_list, dic_train_loss,
+                    report_performance(corpus_name_list, epoch, ["relation"], dic_train_loss,
                                        dic_batches_train_res,
                                        self.my_model.classifiers_dic,
                                        self.sep_corpus_file_dic,
@@ -484,7 +479,7 @@ class Train_valid_test:
                     for corpus_name in corpus_name_list:
                         self.set_valid_test_iterator_for_corpus_list([corpus_name])
                         dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid([corpus_name], 0)
-                        report_performance(corpus_name, epoch, self.my_model.task_list, dic_valid_loss,
+                        report_performance(corpus_name, epoch, ["relation"], dic_valid_loss,
                                            dic_batches_valid_res,
                                            self.my_model.classifiers_dic,
                                            self.sep_corpus_file_dic,
@@ -494,7 +489,7 @@ class Train_valid_test:
                     self.set_valid_test_iterator_for_corpus_list(corpus_name_list)
                     dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(corpus_name_list, 0)
                     dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
-                        = report_performance(corpus_name_list, epoch, self.my_model.task_list, dic_valid_loss,
+                        = report_performance(corpus_name_list, epoch, ["relation"], dic_valid_loss,
                                              dic_batches_valid_res,
                                              self.my_model.classifiers_dic,
                                              self.sep_corpus_file_dic,
@@ -511,7 +506,7 @@ class Train_valid_test:
                         recored_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
                                                    file_detail_performance,
                                                    dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
-                                                   self.sep_corpus_file_dic, args.Task_list, corpus_name_list,
+                                                   self.sep_corpus_file_dic, ["relation"], corpus_name_list,
                                                    args.Average_Time)
                     else:
                         early_stop_num -= 1
@@ -519,7 +514,7 @@ class Train_valid_test:
                     if early_stop_num <= 0:
                         print()
                         print("early stop, in epoch: %d !" % (int(save_epoch)))
-                        for task in args.Task_list:
+                        for task in ["relation"]:
                             print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
                         break
 
@@ -528,7 +523,7 @@ class Train_valid_test:
             print()
             print("Reach max epoch: %d !" % (int(save_epoch)))
 
-            for task in args.Task_list:
+            for task in ["relation"]:
                 print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
 
             self.test_fn(stage, file_model_save)
@@ -618,7 +613,7 @@ class Train_valid_test:
                 dic_loss["average"] = epoch_loss / len(self.my_model.task_list)
 
             dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
-                = report_performance(corpus_name, 0, self.my_model.task_list, dic_loss, dic_batches_res,
+                = report_performance(corpus_name, 0, ["relation"], dic_loss, dic_batches_res,
                                      self.my_model.classifiers_dic,
                                      self.sep_corpus_file_dic,
                                      args.Improve_Flag, "train")
@@ -628,7 +623,7 @@ class Train_valid_test:
             recored_detail_performance(0, dic_total_sub_task_P_R_F, dic_test_PRF,
                                        file_detail_performance.replace('.txt', "_TAC.txt"),
                                        dic_corpus_task_micro_P_R_F, dic_TP_FN_FP,
-                                       self.sep_corpus_file_dic, args.Task_list, corpus_name, args.Average_Time)
+                                       self.sep_corpus_file_dic, ["relation"], corpus_name, args.Average_Time)
 
 
 @print_execute_time
@@ -723,7 +718,7 @@ def get_valid_performance(model_path):
         dic_res_PRF = my_train_valid_test.train_valid_fn(i)
         Average_Time_list.append(dic_res_PRF)  # increasing train cause wrong there !!
 
-    record_each_performance(file_param_record, args.Task_list, Average_Time_list)
+    record_each_performance(file_param_record, ["relation"], Average_Time_list)
 
 
 if __name__ == "__main__":
@@ -756,12 +751,10 @@ if __name__ == "__main__":
         print(args.Task_weights_dic[task], end=" ")
     print()
     print("Loss:", args.Loss)
-    print("Group_num:", args.Group_num)
     print("EARLY_STOP_NUM:", args.EARLY_STOP_NUM)
     print("Test_flag:", args.Test_flag)
     print("Test_TAC_flag:", args.Test_TAC_flag)
     print("Inner_test_TAC_flag:", args.Inner_test_TAC_flag)
     print("Training_way:", args.Training_way)
-    print("Group_num:", args.Group_num)
 
     get_valid_performance(args.model_path)
