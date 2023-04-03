@@ -151,7 +151,7 @@ torch.cuda.manual_seed(SEED)
 class Train_valid_test:
     def __init__(self, data_ID_2_corpus_dic, my_model, tokenizer_list,
                  train_set_list, valid_set_list, test_set_list,
-                 sep_corpus_file_dic, ema, writer):
+                 sep_corpus_file_dic, writer):
 
         self.my_model = my_model.to(device)
         self.tokenizer_list = tokenizer_list
@@ -178,7 +178,7 @@ class Train_valid_test:
         self.test_iterator_dic = None
 
         self.writer = writer
-        self.ema = ema
+        # self.ema = ema
 
         self.sep_corpus_file_dic = sep_corpus_file_dic
         self.all_entity_type_classifier_list = ["only_entity_type_" + i for i in ['Gene', 'Drug', 'Disease']]
@@ -362,7 +362,7 @@ class Train_valid_test:
                 for task in self.my_model.task_list:
                     getattr(self, "optimizer_" + str(task)).step()
                     getattr(self, "optimizer_" + str(task)).zero_grad()
-                self.ema.update()
+                # self.ema.update()
 
             dic_batches_res["ID_list"].append(batch_list[0].ID)
             dic_batches_res["tokens_list"].append(batch_list[0].tokens)
@@ -414,9 +414,9 @@ class Train_valid_test:
     def one_epoch_valid(self, corpus_name_list, epoch):
         with torch.no_grad():
             self.my_model.eval()
-            self.ema.apply_shadow()
+            # self.ema.apply_shadow()
             dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.valid_iterator_dic, "valid", epoch)
-            self.ema.restore()
+            # self.ema.restore()
         # torch.cuda.empty_cache()
         return dic_loss, dic_batches_res
 
@@ -711,12 +711,12 @@ def get_valid_performance(model_path):
         test_set_list.append(RC_test_set)
 
     my_model.add_classifers(classifiers_dic, args.Task_list)
-    ema = EMA(my_model, 0.999, device)
-    ema.register()
+    # ema = EMA(my_model, 0.999, device)
+    # ema.register()
 
     my_train_valid_test = Train_valid_test(data_ID_2_corpus_dic, my_model, tokenizer_list,
                                            train_set_list, valid_set_list, test_set_list,
-                                           sep_corpus_file_dic, ema, writer)
+                                           sep_corpus_file_dic, writer)
     Average_Time_list = []
     for i in range(args.Average_Time):
         print("==========================" + str(i) + "=================================================")
