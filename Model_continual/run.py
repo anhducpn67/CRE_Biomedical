@@ -34,11 +34,8 @@ parser.add_argument('--Task_weights_dic', default="{'entity_span':0.0, 'entity_t
 parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
                     help=["DDI", "Twi_ADE", "ADE", "CPR", "PPI"])
 parser.add_argument('--Random_ratio', default=-1, type=float, help=">1 means mask all data from other corpus")
-parser.add_argument('--Group_num', default=40, type=int)
 parser.add_argument('--Training_way', default="Continual_Training", type=str)
 parser.add_argument('--Test_flag', action='store_true', default=False, help=[False, True])
-parser.add_argument('--Test_TAC_flag', action='store_true', default=False, help=[False, True])  # "TAC2019"
-parser.add_argument('--Inner_test_TAC_flag', action='store_true', default=False, help=[False, True])
 parser.add_argument('--Test_Corpus', default=["TAC2019"], nargs='+',
                     help=["ADE", "Twi_ADE", "DDI", "CPR", "TAC2019"])  # TAC
 parser.add_argument('--Test_model_file', type=str,
@@ -111,22 +108,6 @@ for k, v in args.Task_weights_dic.items():
     if k in args.Task_list:
         v_sum += v
 # assert v_sum == 1
-
-if args.Test_TAC_flag and (not args.Inner_test_TAC_flag):
-    args.Group_num = 1
-
-if args.Test_TAC_flag:
-    assert args.Test_flag
-
-if args.Inner_test_TAC_flag:
-    assert args.Test_flag
-    assert args.Test_TAC_flag
-    args.Min_train_performance_Report = 0
-    args.Average_Time = 1
-
-# if args.Test_TAC_flag :
-#     if not args.Test_flag:
-#         raise Exception("Test_TAC_flag and Test_flag must compatoble")
 
 if args.bert_model == "large":
     args.model_path = "../../../Data/embedding/biobert_large"
@@ -276,36 +257,36 @@ class Train_valid_test:
         epoch_relation_loss = 0
         count = 0
 
-        entity_type_no_need_list = []
-        entity_span_and_type_no_need_list = []
-        relation_no_need_list = []
+        # entity_type_no_need_list = []
+        # entity_span_and_type_no_need_list = []
+        # relation_no_need_list = []
 
-        if valid_test_flag == "train":
-            total_entity_type = []
-            total_relation = []
-            for corpus_name in corpus_name_list:
-                total_entity_type += self.sep_corpus_file_dic[corpus_name]['entity_type']
-                total_relation += self.sep_corpus_file_dic[corpus_name]['relation']
-
-            if args.Random_ratio >= np.random.uniform(0, 1):
-                self.false_flag = True
-                if "entity_type" in args.Task_list:
-                    for class_name in list(
-                            set(self.all_entity_type_classifier_list).difference(set(total_entity_type))):
-                        if hasattr(self.my_model.my_entity_type_classifier, "my_classifer_{0}".format(class_name)):
-                            no_need_classifer = getattr(self.my_model.my_entity_type_classifier,
-                                                        "my_classifer_{0}".format(class_name))
-                            entity_type_no_need_list.append(no_need_classifer)
-                            for p in no_need_classifer.parameters():
-                                p.requires_grad = False
-                if "relation" in args.Task_list:
-                    for class_name in list(set(self.all_relation_classifier_list).difference(set(total_relation))):
-                        if hasattr(self.my_model.my_relation_classifier, "my_classifer_{0}".format(class_name)):
-                            no_need_classifer = getattr(self.my_model.my_relation_classifier,
-                                                        "my_classifer_{0}".format(class_name))
-                            relation_no_need_list.append(no_need_classifer)
-                            for p in no_need_classifer.parameters():
-                                p.requires_grad = False
+        # if valid_test_flag == "train":
+        #     total_entity_type = []
+        #     total_relation = []
+        #     for corpus_name in corpus_name_list:
+        #         total_entity_type += self.sep_corpus_file_dic[corpus_name]['entity_type']
+        #         total_relation += self.sep_corpus_file_dic[corpus_name]['relation']
+        #
+        #     if args.Random_ratio >= np.random.uniform(0, 1):
+        #         self.false_flag = True
+        #         if "entity_type" in args.Task_list:
+        #             for class_name in list(
+        #                     set(self.all_entity_type_classifier_list).difference(set(total_entity_type))):
+        #                 if hasattr(self.my_model.my_entity_type_classifier, "my_classifer_{0}".format(class_name)):
+        #                     no_need_classifer = getattr(self.my_model.my_entity_type_classifier,
+        #                                                 "my_classifer_{0}".format(class_name))
+        #                     entity_type_no_need_list.append(no_need_classifer)
+        #                     for p in no_need_classifer.parameters():
+        #                         p.requires_grad = False
+        #         if "relation" in args.Task_list:
+        #             for class_name in list(set(self.all_relation_classifier_list).difference(set(total_relation))):
+        #                 if hasattr(self.my_model.my_relation_classifier, "my_classifer_{0}".format(class_name)):
+        #                     no_need_classifer = getattr(self.my_model.my_relation_classifier,
+        #                                                 "my_classifer_{0}".format(class_name))
+        #                     relation_no_need_list.append(no_need_classifer)
+        #                     for p in no_need_classifer.parameters():
+        #                         p.requires_grad = False
 
         if "relation" in args.Task_list:
             temp_my_iterator_list = [[ner, rc] for ner, rc in zip(iterator_dic[0], iterator_dic[1])]
@@ -401,19 +382,19 @@ class Train_valid_test:
                 except:
                     pass  # nothing wrong
 
-        if valid_test_flag == "train" and self.false_flag:
-            if "entity_type" in args.Task_list:
-                for class_name in entity_type_no_need_list:
-                    for p in class_name.parameters():
-                        p.requires_grad = True
-            if "entity_span_and_type" in args.Task_list:
-                for class_name in entity_span_and_type_no_need_list:
-                    for p in class_name.parameters():
-                        p.requires_grad = True
-            if "relation" in args.Task_list:
-                for class_name in relation_no_need_list:
-                    for p in class_name.parameters():
-                        p.requires_grad = True
+        # if valid_test_flag == "train" and self.false_flag:
+        #     if "entity_type" in args.Task_list:
+        #         for class_name in entity_type_no_need_list:
+        #             for p in class_name.parameters():
+        #                 p.requires_grad = True
+        #     if "entity_span_and_type" in args.Task_list:
+        #         for class_name in entity_span_and_type_no_need_list:
+        #             for p in class_name.parameters():
+        #                 p.requires_grad = True
+        #     if "relation" in args.Task_list:
+        #         for class_name in relation_no_need_list:
+        #             for p in class_name.parameters():
+        #                 p.requires_grad = True
 
         epoch_loss = 0
         dic_loss = {"average": 0}
@@ -735,7 +716,7 @@ class Train_valid_test:
 def get_valid_performance(model_path):
     writer = SummaryWriter(tensor_board_path)
     corpus_file_dic, sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
-        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.bert_model, args.Test_TAC_flag)
+        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.bert_model)
 
     make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
                     args.All_data)
@@ -859,8 +840,6 @@ if __name__ == "__main__":
     print("Loss:", args.Loss)
     print("EARLY_STOP_NUM:", args.EARLY_STOP_NUM)
     print("Test_flag:", args.Test_flag)
-    print("Test_TAC_flag:", args.Test_TAC_flag)
-    print("Inner_test_TAC_flag:", args.Inner_test_TAC_flag)
     print("Training_way:", args.Training_way)
 
     get_valid_performance(args.model_path)
