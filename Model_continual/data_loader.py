@@ -54,10 +54,8 @@ def get_data_ID_2_corpus_dic(corpus_list):
     return data_ID_2_corpus_dic
 
 
-def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large, Test_TAC_flag):
+def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large):
     global v_list
-    if Test_TAC_flag:
-        corpus_list.append("TAC2019")
 
     with open("../data/corpus_information.json", "r") as f:
         raw_corpus_file_dic = eval(f.read())
