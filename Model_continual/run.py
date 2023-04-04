@@ -6,148 +6,85 @@ import sys
 import shutil
 import argparse
 import os
-import math
 import copy
 import random
 import numpy as np
 import torchtext
 from sklearn.cluster import KMeans
 from torchtext.legacy.data import Batch
+import torch
+import transformers
+import torch.optim as optim
 
-from utils import print_execute_time, get_sent_len, Logger, record_each_performance, recored_detail_performance, \
-    EMA, get_entity_type_rep_dic, log_gradient_updates, log_parameter_and_gradient_statistics
+from utils import print_execute_time, get_sent_len, Logger, recored_detail_performance
 from metric import report_performance
-from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Entity_Span_And_Type_Classifier, \
-    My_Relation_Classifier, My_Bert_Encoder, My_Model
+from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Relation_Classifier, My_Bert_Encoder, My_Model
 from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
 
 parser = argparse.ArgumentParser(description="Bert Model")
-parser.add_argument('--GPU', default="2", type=str)
-parser.add_argument('--All_data', action='store_true', default=False)  # True False
+parser.add_argument('--ID', default=0, type=int, help="Model's ID")
+parser.add_argument('--BERT_MODEL', default="base", type=str, help="base, large")
+parser.add_argument('--GPU', default="0", type=str)
+parser.add_argument('--All_data', action='store_true', default=False)
 parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
-parser.add_argument('--bert_model', default="base", type=str, help="base, large")
-parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
-                    help=["entity_span", "entity_type", "entity_span_and_type", "relation"])
-parser.add_argument('--Task_weights_dic', default="{'entity_span':0.0, 'entity_type':0.0, 'relation':0.3}", type=str)
-
-parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
-                    help=["DDI", "Twi_ADE", "ADE", "CPR", "PPI"])
-parser.add_argument('--Random_ratio', default=-1, type=float, help=">1 means mask all data from other corpus")
-parser.add_argument('--Group_num', default=40, type=int)
-parser.add_argument('--Training_way', default="Continual_Training", type=str)
-parser.add_argument('--Test_flag', action='store_true', default=False, help=[False, True])
-parser.add_argument('--Test_TAC_flag', action='store_true', default=False, help=[False, True])  # "TAC2019"
-parser.add_argument('--Inner_test_TAC_flag', action='store_true', default=False, help=[False, True])
-parser.add_argument('--Test_Corpus', default=["TAC2019"], nargs='+',
-                    help=["ADE", "Twi_ADE", "DDI", "CPR", "TAC2019"])  # TAC
-parser.add_argument('--Test_model_file', type=str,
-                    default="../result/save_model/Model_['--ID', '66666', '--GPU', '0', '--Training_way', 'Multi_Task_Training', '--Entity_Prep_Way', 'entitiy_type_marker', '--Group_num', '1', '--Corpus_list', 'BioInfer', '--All_data']")
-
-parser.add_argument('--Share_embedding', action='store_true', default=False, help=[False, True])
-parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
-                    help=["standard", "entitiy_type_marker", "entity_type_embedding"])
-parser.add_argument('--If_add_prototype', action='store_true', default=False)  # True False
-parser.add_argument('--If_soft_share', action='store_true', default=False)  # True False
-parser.add_argument('--Pick_lay_num', default=-1, type=int, help="-1 means last layer")
-
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=30, type=int)
-parser.add_argument('--Min_train_performance_Report', default=5, type=int)
+parser.add_argument('--EPOCH', default=3, type=int)
+parser.add_argument('--Min_train_performance_Report', default=1, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
 
+parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
+                    help="\"entity_span\", \"entity_type\", \"relation\"")
+parser.add_argument('--Task_weights_dic', default="{'entity_span':0.0, 'entity_type':0.0, 'relation':0.3}", type=str)
 
+parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
+                    help="\"DDI\", \"Twi_ADE\", \"ADE\", \"CPR\", \"PPI\"")
+parser.add_argument('--Random_ratio', default=-1, type=float, help=">1 means mask all data from other corpus")
+parser.add_argument('--Test_flag', action='store_true', default=False)
+parser.add_argument('--Test_model_file', type=str,
+                    default="../result/save_model/???")
+
+parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
+                    help="\"standard\" or \"entitiy_type_marker\"")
+
+parser.add_argument('--Optim', default="AdamW", type=str, help="AdamW")
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
 parser.add_argument('--LR_min_bert', default=1e-6, type=float)
-parser.add_argument('--LR_max_entity_span', default=1e-4, type=float)
-parser.add_argument('--LR_min_entity_span', default=2e-6, type=float)
-parser.add_argument('--LR_max_entity_type', default=2e-5, type=float)
-parser.add_argument('--LR_min_entity_type', default=2e-6, type=float)
-parser.add_argument('--LR_max_entity_span_and_type', default=2e-5, type=float)
-parser.add_argument('--LR_min_entity_span_and_type', default=2e-6, type=float)
 parser.add_argument('--LR_max_relation', default=1e-4, type=float)
 parser.add_argument('--LR_min_relation', default=5e-6, type=float)
 parser.add_argument('--L2', default=1e-2, type=float)
 
 parser.add_argument('--Weight_Loss', action='store_true', default=True)
-parser.add_argument('--Loss', type=str, default="BCE", help=["BCE", "CE", "FSL"])
+parser.add_argument('--Loss', type=str, default="BCE", help="\"BCE\", \"CE\"")
 parser.add_argument('--Min_weight', default=0.5, type=float)
 parser.add_argument('--Max_weight', default=5, type=float)
-parser.add_argument('--Tau', default=1.0, type=float)
-parser.add_argument('--Type_emb_num', default=50, type=int)
 
-parser.add_argument('--Relation_input', default="entity_span", type=str, help=["entity_span", "entity_span_and_type"])
-parser.add_argument('--Only_relation', action='store_true', default=False)
-parser.add_argument('--Num_warmup_epoch', default=3, type=int)
-parser.add_argument('--Tensorboard', action='store_true', default=False)
-parser.add_argument('--Optim', default="AdamW", type=str, help=["AdamW"])
-parser.add_argument('--ID', default=0, type=int, help="Just for tensorboard reg")
 
-parser.add_argument('--IF_CRF', action='store_true', default=False)
-parser.add_argument('--Decay_epoch_num', default=40, type=float)
-parser.add_argument('--Improve_Flag', action='store_true', default=False)
-# AdamW  --LR_bert=5e-4 --LR_classfier=1e-3  70.285
 args = parser.parse_args()
 
 os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 warnings.filterwarnings("ignore")
 
-file_param_record = '../result/param_record'
-file_result = '../result/detail_results/result_' + str(sys.argv[1:]) + '.json'
 file_model_save = "../result/save_model/" + "Model_" + str(sys.argv[1:])
 file_training_performance = '../result/detail_training/training_' + str(sys.argv[1:]) + '.txt'
 
 sys.stdout = Logger(filename=file_training_performance)
-tensor_board_path = '../result/runs/' + str(sys.argv[1:])
-try:
-    shutil.rmtree(tensor_board_path)
-except FileNotFoundError:
-    pass
-
 args.Task_weights_dic = eval(args.Task_weights_dic)
-v_sum = 0
-for k, v in args.Task_weights_dic.items():
-    if k in args.Task_list:
-        v_sum += v
-# assert v_sum == 1
 
-if args.Test_TAC_flag and (not args.Inner_test_TAC_flag):
-    args.Group_num = 1
-
-if args.Test_TAC_flag:
-    assert args.Test_flag
-
-if args.Inner_test_TAC_flag:
-    assert args.Test_flag
-    assert args.Test_TAC_flag
-    args.Min_train_performance_Report = 0
-    args.Average_Time = 1
-
-# if args.Test_TAC_flag :
-#     if not args.Test_flag:
-#         raise Exception("Test_TAC_flag and Test_flag must compatoble")
-
-if args.bert_model == "large":
+if args.BERT_MODEL == "large":
     args.model_path = "../../../Data/embedding/biobert_large"
     args.Word_embedding_size = 1024
     args.Hidden_Size_Common_Encoder = args.Word_embedding_size
-elif args.bert_model == "base":
+elif args.BERT_MODEL == "base":
     args.model_path = "dmis-lab/biobert-base-cased-v1.1"
     args.Word_embedding_size = 768
     args.Hidden_Size_Common_Encoder = args.Word_embedding_size
-
-from torch.utils.tensorboard import SummaryWriter
-import torch
-import transformers
-import torch.optim as optim
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
 device = torch.device("cuda")
 OPTIMIZER = eval("optim." + args.Optim)
-Embedding_requires_grad = True
-BATCH_FIRST = True
 SEED = 1234
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
@@ -172,7 +109,7 @@ def select_data(all_embedding_representations):
 class Train_valid_test:
     def __init__(self, data_ID_2_corpus_dic, my_model, tokenizer_list,
                  train_set_list, valid_set_list, test_set_list,
-                 sep_corpus_file_dic, writer):
+                 sep_corpus_file_dic):
 
         self.my_model = my_model.to(device)
         self.tokenizer_list = tokenizer_list
@@ -191,15 +128,7 @@ class Train_valid_test:
         self.valid_iterator_dic = None
         self.test_iterator_dic = None
 
-        self.writer = writer
-        # self.ema = ema
-
         self.sep_corpus_file_dic = sep_corpus_file_dic
-        self.all_entity_type_classifier_list = ["only_entity_type_" + i for i in ['Gene', 'Drug', 'Disease']]
-        self.all_entity_span_and_type_classifier_list = ["joint_entity_type_" + i for i in ['Gene', 'Drug', 'Disease']]
-        self.all_relation_classifier_list = ["relation_" + i for i in
-                                             ['Drug_Disease_interaction', 'Drug_Gene_interaction',
-                                              'Drug_Drug_interaction', 'Gene_Gene_interaction']]
 
         self.memorized_samples = {}
         self.total_memorized_samples = []
@@ -218,18 +147,6 @@ class Train_valid_test:
             my_lr_max = getattr(args, "LR_max_" + str(task))
             setattr(self, "optimizer_" + str(task), OPTIMIZER(params=filter(lambda p: p.requires_grad, my_parameters),
                                                               lr=my_lr_max, weight_decay=args.L2))
-        self.entity_type_rep_dic = {}
-
-    def sep_list(self, listTemp, n):
-        step = math.ceil(len(listTemp) / n)
-        return_list = []
-        s_index = 0
-        e_index = 0
-        for i in range(n):
-            e_index += step
-            return_list.append(listTemp[s_index: e_index])
-            s_index = e_index
-        return return_list
 
     def get_dic_data(self, set_list):
         NER_data_dic = {}
@@ -259,53 +176,51 @@ class Train_valid_test:
     def save_model(self, epoch):
         self.model_state_dic = {}
         self.model_state_dic['epoch'] = epoch
-        self.model_state_dic['entity_type_rep_dic'] = self.entity_type_rep_dic
         self.model_state_dic['my_model'] = self.my_model.state_dict()
         torch.save(self.model_state_dic, file_model_save)
 
-    def one_epoch(self, corpus_name_list, iterator_dic, valid_test_flag, epoch):
+    def one_epoch(self, corpus_name_list, iterator_dic, valid_test_flag):
         """
         dic_batches_res = {"entity_span":[  batch-num [ ( one_batch_pred_sub_res[batch_size[entity_num]], [batch.entity_span] ) ] ],
                             "entity_type":[], "relation":[]}
         """
         dic_batches_res = {"ID_list": [], "tokens_list": [], "corpus_name_list": [], "entity_span": [],
-                           "entity_type": [], "entity_span_and_type": [], "relation": []}
+                           "entity_type": [], "relation": []}
         epoch_entity_span_loss = 0
         epoch_entity_type_loss = 0
-        epoch_entity_span_and_type_loss = 0
         epoch_relation_loss = 0
         count = 0
 
-        entity_type_no_need_list = []
-        entity_span_and_type_no_need_list = []
-        relation_no_need_list = []
+        # entity_type_no_need_list = []
+        # entity_span_and_type_no_need_list = []
+        # relation_no_need_list = []
 
-        if valid_test_flag == "train":
-            total_entity_type = []
-            total_relation = []
-            for corpus_name in corpus_name_list:
-                total_entity_type += self.sep_corpus_file_dic[corpus_name]['entity_type']
-                total_relation += self.sep_corpus_file_dic[corpus_name]['relation']
-
-            if args.Random_ratio >= np.random.uniform(0, 1):
-                self.false_flag = True
-                if "entity_type" in args.Task_list:
-                    for class_name in list(
-                            set(self.all_entity_type_classifier_list).difference(set(total_entity_type))):
-                        if hasattr(self.my_model.my_entity_type_classifier, "my_classifer_{0}".format(class_name)):
-                            no_need_classifer = getattr(self.my_model.my_entity_type_classifier,
-                                                        "my_classifer_{0}".format(class_name))
-                            entity_type_no_need_list.append(no_need_classifer)
-                            for p in no_need_classifer.parameters():
-                                p.requires_grad = False
-                if "relation" in args.Task_list:
-                    for class_name in list(set(self.all_relation_classifier_list).difference(set(total_relation))):
-                        if hasattr(self.my_model.my_relation_classifier, "my_classifer_{0}".format(class_name)):
-                            no_need_classifer = getattr(self.my_model.my_relation_classifier,
-                                                        "my_classifer_{0}".format(class_name))
-                            relation_no_need_list.append(no_need_classifer)
-                            for p in no_need_classifer.parameters():
-                                p.requires_grad = False
+        # if valid_test_flag == "train":
+        #     total_entity_type = []
+        #     total_relation = []
+        #     for corpus_name in corpus_name_list:
+        #         total_entity_type += self.sep_corpus_file_dic[corpus_name]['entity_type']
+        #         total_relation += self.sep_corpus_file_dic[corpus_name]['relation']
+        #
+        #     if args.Random_ratio >= np.random.uniform(0, 1):
+        #         self.false_flag = True
+        #         if "entity_type" in args.Task_list:
+        #             for class_name in list(
+        #                     set(self.all_entity_type_classifier_list).difference(set(total_entity_type))):
+        #                 if hasattr(self.my_model.my_entity_type_classifier, "my_classifer_{0}".format(class_name)):
+        #                     no_need_classifer = getattr(self.my_model.my_entity_type_classifier,
+        #                                                 "my_classifer_{0}".format(class_name))
+        #                     entity_type_no_need_list.append(no_need_classifer)
+        #                     for p in no_need_classifer.parameters():
+        #                         p.requires_grad = False
+        #         if "relation" in args.Task_list:
+        #             for class_name in list(set(self.all_relation_classifier_list).difference(set(total_relation))):
+        #                 if hasattr(self.my_model.my_relation_classifier, "my_classifer_{0}".format(class_name)):
+        #                     no_need_classifer = getattr(self.my_model.my_relation_classifier,
+        #                                                 "my_classifer_{0}".format(class_name))
+        #                     relation_no_need_list.append(no_need_classifer)
+        #                     for p in no_need_classifer.parameters():
+        #                         p.requires_grad = False
 
         if "relation" in args.Task_list:
             temp_my_iterator_list = [[ner, rc] for ner, rc in zip(iterator_dic[0], iterator_dic[1])]
@@ -325,9 +240,7 @@ class Train_valid_test:
             if valid_test_flag == "train" and corpus_name_list[0] != args.Corpus_list[0]:
                 replay_batch_list = self.get_batch_memory()
                 with torch.cuda.amp.autocast():
-                    dic_loss_one_batch, _ = self.my_model.forward(replay_batch_list, epoch,
-                                                                  self.entity_type_rep_dic,
-                                                                  valid_test_flag)
+                    dic_loss_one_batch, _ = self.my_model.forward(replay_batch_list)
 
                 batch_loss_list = []
                 if "entity_span" in self.my_model.task_list:
@@ -353,9 +266,7 @@ class Train_valid_test:
 
             # D_train
             with torch.cuda.amp.autocast():
-                dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list, epoch,
-                                                                              self.entity_type_rep_dic,
-                                                                              valid_test_flag)
+                dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list)
 
             batch_loss_list = []
             if "entity_span" in self.my_model.task_list:
@@ -366,10 +277,6 @@ class Train_valid_test:
                 batch_entity_type_loss = dic_loss_one_batch["entity_type"]
                 epoch_entity_type_loss += batch_entity_type_loss
                 batch_loss_list.append(batch_entity_type_loss)
-            if "entity_span_and_type" in self.my_model.task_list:
-                batch_entity_span_and_type_loss = dic_loss_one_batch["entity_span_and_type"]
-                epoch_entity_span_and_type_loss += batch_entity_span_and_type_loss
-                batch_loss_list.append(batch_entity_span_and_type_loss)
             if "relation" in self.my_model.task_list:
                 batch_relation_loss = dic_loss_one_batch["relation"]
                 epoch_relation_loss += batch_relation_loss
@@ -390,7 +297,6 @@ class Train_valid_test:
                 for task in ["relation"]:
                     getattr(self, "optimizer_" + str(task)).step()
                     getattr(self, "optimizer_" + str(task)).zero_grad()
-                # self.ema.update()
 
             dic_batches_res["ID_list"].append(batch_list[0].ID)
             dic_batches_res["tokens_list"].append(batch_list[0].tokens)
@@ -401,19 +307,15 @@ class Train_valid_test:
                 except:
                     pass  # nothing wrong
 
-        if valid_test_flag == "train" and self.false_flag:
-            if "entity_type" in args.Task_list:
-                for class_name in entity_type_no_need_list:
-                    for p in class_name.parameters():
-                        p.requires_grad = True
-            if "entity_span_and_type" in args.Task_list:
-                for class_name in entity_span_and_type_no_need_list:
-                    for p in class_name.parameters():
-                        p.requires_grad = True
-            if "relation" in args.Task_list:
-                for class_name in relation_no_need_list:
-                    for p in class_name.parameters():
-                        p.requires_grad = True
+        # if valid_test_flag == "train" and self.false_flag:
+        #     if "entity_type" in args.Task_list:
+        #         for class_name in entity_type_no_need_list:
+        #             for p in class_name.parameters():
+        #                 p.requires_grad = True
+        #     if "relation" in args.Task_list:
+        #         for class_name in relation_no_need_list:
+        #             for p in class_name.parameters():
+        #                 p.requires_grad = True
 
         epoch_loss = 0
         dic_loss = {"average": 0}
@@ -423,9 +325,6 @@ class Train_valid_test:
         if "entity_type" in self.my_model.task_list:
             dic_loss["entity_type"] = epoch_entity_type_loss / count
             epoch_loss += epoch_entity_type_loss / count
-        if "entity_span_and_type" in self.my_model.task_list:
-            dic_loss["entity_span_and_type"] = epoch_entity_span_and_type_loss / count
-            epoch_loss += epoch_entity_span_and_type_loss / count
         if "relation" in self.my_model.task_list:
             dic_loss["relation"] = epoch_relation_loss / count
             epoch_loss += epoch_relation_loss / count
@@ -434,18 +333,15 @@ class Train_valid_test:
 
         return dic_loss, dic_batches_res
 
-    def one_epoch_train(self, corpus_name_list, epoch):
+    def one_epoch_train(self, corpus_name_list):
         self.my_model.train()
-        dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.train_iterator_dic, "train", epoch)
+        dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.train_iterator_dic, "train")
         return dic_loss, dic_batches_res
 
-    def one_epoch_valid(self, corpus_name_list, epoch):
+    def one_epoch_valid(self, corpus_name_list):
         with torch.no_grad():
             self.my_model.eval()
-            # self.ema.apply_shadow()
-            dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.valid_iterator_dic, "valid", epoch)
-            # self.ema.restore()
-        # torch.cuda.empty_cache()
+            dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.valid_iterator_dic, "valid")
         return dic_loss, dic_batches_res
 
     def set_iterator_for_specific_corpus(self, corpus_name_list):
@@ -508,25 +404,25 @@ class Train_valid_test:
             early_stop_num = args.EARLY_STOP_NUM
             self.set_iterator_for_specific_corpus([corpus_name])
             for epoch in range(0, args.EPOCH + 1):
-                dic_train_loss, dic_batches_train_res = self.one_epoch_train([corpus_name], epoch)
+                dic_train_loss, dic_batches_train_res = self.one_epoch_train([corpus_name])
                 if epoch >= args.Min_train_performance_Report:
-                    report_performance(corpus_name, epoch, ["relation"], dic_train_loss,
+                    report_performance(corpus_name, epoch, dic_train_loss,
                                        dic_batches_train_res,
                                        self.my_model.classifiers_dic,
                                        self.sep_corpus_file_dic,
-                                       args.Improve_Flag, "train")
+                                       "train")
 
                     # Validating for each previous corpus
                     for i in range(0, idx_corpus + 1):
                         corpus_name_valid = corpus_list[i]
                         self.set_iterator_for_specific_corpus([corpus_name_valid])
-                        dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(corpus_name_valid, 0)
+                        dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(corpus_name_valid)
                         dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
-                            = report_performance(corpus_name_valid, epoch, ["relation"], dic_valid_loss,
+                            = report_performance(corpus_name_valid, epoch, dic_valid_loss,
                                                  dic_batches_valid_res,
                                                  self.my_model.classifiers_dic,
                                                  self.sep_corpus_file_dic,
-                                                 args.Improve_Flag, "valid")
+                                                 "valid")
 
                     if dic_valid_PRF[args.Task_list[-1]][2] >= maxF:
                         early_stop_num = args.EARLY_STOP_NUM
@@ -640,7 +536,6 @@ class Train_valid_test:
         print("Loading Model...")
         checkpoint = torch.load(file_model_save_path)
         self.my_model.load_state_dict(checkpoint['my_model'])
-        self.entity_type_rep_dic = checkpoint['epoch']
         print("Loading success !")
 
         current_corpus_list = copy.deepcopy(args.Corpus_list)
@@ -655,11 +550,9 @@ class Train_valid_test:
             self.set_iterator_for_specific_corpus(corpus_name)
             with torch.no_grad():
                 self.my_model.eval()
-                dic_batches_res = {"ID_list": [], "tokens_list": [], "entity_span": [], "entity_type": [],
-                                   "entity_span_and_type": [], "relation": []}
+                dic_batches_res = {"ID_list": [], "tokens_list": [], "entity_span": [], "entity_type": [], "relation": []}
                 epoch_entity_span_loss = 0
                 epoch_entity_type_loss = 0
-                epoch_entity_span_and_type_loss = 0
                 epoch_relation_loss = 0
                 count = 0
 
@@ -669,9 +562,7 @@ class Train_valid_test:
                 for batch_list in temp_my_iterator_list:
                     count += 1
                     with torch.cuda.amp.autocast():
-                        dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list, 0,
-                                                                                      self.entity_type_rep_dic,
-                                                                                      "valid")
+                        dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list)
                     batch_loss_list = []
                     if "entity_span" in self.my_model.task_list:
                         batch_entity_span_loss = args.Task_weights_dic["entity_span"] * dic_loss_one_batch[
@@ -682,11 +573,6 @@ class Train_valid_test:
                         batch_entity_type_loss = args.Task_weights_dic["entity_type"] * dic_loss_one_batch["entity_type"]
                         epoch_entity_type_loss += batch_entity_type_loss
                         batch_loss_list.append(batch_entity_type_loss)
-                    if "entity_span_and_type" in self.my_model.task_list:
-                        batch_entity_span_and_type_loss = args.Task_weights_dic["entity_span_and_type"] * \
-                                                          dic_loss_one_batch["entity_span_and_type"]
-                        epoch_entity_span_and_type_loss += batch_entity_span_and_type_loss
-                        batch_loss_list.append(batch_entity_span_and_type_loss)
                     if "relation" in self.my_model.task_list:
                         batch_relation_loss = args.Task_weights_dic["relation"] * dic_loss_one_batch["relation"]
                         epoch_relation_loss += batch_relation_loss
@@ -708,9 +594,6 @@ class Train_valid_test:
                 if "entity_type" in self.my_model.task_list:
                     dic_loss["entity_type"] = epoch_entity_type_loss / count
                     epoch_loss += epoch_entity_type_loss / count
-                if "entity_span_and_type" in self.my_model.task_list:
-                    dic_loss["entity_span_and_type"] = epoch_entity_span_and_type_loss / count
-                    epoch_loss += epoch_entity_span_and_type_loss / count
                 if "relation" in self.my_model.task_list:
                     dic_loss["relation"] = epoch_relation_loss / count
                     epoch_loss += epoch_relation_loss / count
@@ -718,10 +601,10 @@ class Train_valid_test:
                 dic_loss["average"] = epoch_loss / len(self.my_model.task_list)
 
             dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
-                = report_performance(corpus_name, 0, ["relation"], dic_loss, dic_batches_res,
+                = report_performance(corpus_name, 0, dic_loss, dic_batches_res,
                                      self.my_model.classifiers_dic,
                                      self.sep_corpus_file_dic,
-                                     args.Improve_Flag, "train")
+                                     "train")
 
             file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/{idx_corpus}/performance_{str(corpus_name)}.txt'
             os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
@@ -733,19 +616,17 @@ class Train_valid_test:
 
 @print_execute_time
 def get_valid_performance(model_path):
-    writer = SummaryWriter(tensor_board_path)
     corpus_file_dic, sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
-        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.bert_model, args.Test_TAC_flag)
+        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.BERT_MODEL)
 
-    make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
+    make_model_data(args.BERT_MODEL, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
                     args.All_data)
     data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
                             "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
     bert_NER = transformers.BertModel.from_pretrained(model_path)
     tokenizer_NER = transformers.BertTokenizer.from_pretrained(model_path)
 
-    bert_RC = transformers.BertModel.from_pretrained(model_path, is_decoder=args.If_soft_share,
-                                                     add_cross_attention=args.If_soft_share)
+    bert_RC = transformers.BertModel.from_pretrained(model_path, is_decoder=False, add_cross_attention=False)
     tokenizer_RC = transformers.BertTokenizer.from_pretrained(model_path)
 
     entitiy_type_list = ["Drug", "Gene", "Disease"]
@@ -772,24 +653,21 @@ def get_valid_performance(model_path):
 
     my_entity_span_classifier = My_Entity_Span_Classifier(args, device)
     my_entity_type_classifier = My_Entity_Type_Classifier(args, device)
-    my_entity_span_and_type_classifier = My_Entity_Span_And_Type_Classifier(args, device)
     my_relation_classifier = My_Relation_Classifier(args, tokenizer_RC, device)
-    classifiers_dic = dict(zip(["entity_span", "entity_type", "entity_span_and_type", "relation"],
-                               [my_entity_span_classifier, my_entity_type_classifier,
-                                my_entity_span_and_type_classifier, my_relation_classifier]))
+    classifiers_dic = dict(zip(["entity_span", "entity_type", "relation"],
+                               [my_entity_span_classifier, my_entity_type_classifier, my_relation_classifier]))
 
     train_set_list = []
     valid_set_list = []
     test_set_list = []
 
-    # for index, (corpus_name, (entity_type_num_list, relation_num_list, file_train_valid_test_list)) in enumerate(corpus_file_dic.items()):
     corpus_name = list(corpus_file_dic.keys())[0]
     entity_type_num_list, relation_num_list, file_train_valid_test_list = corpus_file_dic[corpus_name]
     print("===============" + corpus_name + "===============")
 
     NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Span_fields_dic, \
         TAGS_Entity_Type_fields_dic, TAGS_Entity_Span_And_Type_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic \
-        = prepared_NER_data(args.BATCH_SIZE, device, tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
+        = prepared_NER_data(tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
 
     train_set_list.append(NER_train_set)
     valid_set_list.append(NER_valid_set)
@@ -797,11 +675,10 @@ def get_valid_performance(model_path):
 
     my_entity_span_classifier.create_classifers(TAGS_Entity_Span_fields_dic)
     my_entity_type_classifier.create_classifers(TAGS_Entity_Type_fields_dic, TAGS_sep_entity_fields_dic)
-    my_entity_span_and_type_classifier.create_classifers(TAGS_Entity_Span_And_Type_fields_dic)
 
     if "relation" in args.Task_list:
         RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
-            = prepared_RC_data(args.BATCH_SIZE, device, tokenizer_RC, file_train_valid_test_list, relation_num_list)
+            = prepared_RC_data(tokenizer_RC, file_train_valid_test_list, relation_num_list)
         my_relation_classifier.create_classifers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
                                                  TAGS_Entity_Type_fields_dic)
 
@@ -810,19 +687,15 @@ def get_valid_performance(model_path):
         test_set_list.append(RC_test_set)
 
     my_model.add_classifers(classifiers_dic, args.Task_list)
-    # ema = EMA(my_model, 0.999, device)
-    # ema.register()
 
     my_train_valid_test = Train_valid_test(data_ID_2_corpus_dic, my_model, tokenizer_list,
                                            train_set_list, valid_set_list, test_set_list,
-                                           sep_corpus_file_dic, writer)
+                                           sep_corpus_file_dic)
     Average_Time_list = []
     for i in range(args.Average_Time):
         print("==========================" + str(i) + "=================================================")
         dic_res_PRF = my_train_valid_test.train_valid_fn()
-        Average_Time_list.append(dic_res_PRF)  # increasing train cause wrong there !!
-
-    record_each_performance(file_param_record, ["relation"], Average_Time_list)
+        Average_Time_list.append(dic_res_PRF)
 
 
 if __name__ == "__main__":
@@ -830,28 +703,17 @@ if __name__ == "__main__":
     if args.Entity_Prep_Way != "standard":
         print("warning, Entity_Prep_Way is not default : ", args.Entity_Prep_Way)
         print()
-    if args.If_add_prototype:
-        print("warning, If_add_prototype is not default : ", args.If_add_prototype)
-        print()
-    if args.If_soft_share:
-        print("warning, If_soft_share is not default : ", args.Entity_Prep_Way)
-        print()
 
     print("GPU:", args.GPU)
-    print("Bert:", args.bert_model)
+    print("Bert:", args.BERT_MODEL)
     print("Batch size: ", args.BATCH_SIZE)
     print("Memory size: ", args.MEMORY_SIZE)
     print("LR_max_bert: ", args.LR_max_bert)
-    print("LR_max_entity_span: ", args.LR_max_entity_span)
-    print("LR_max_entity_type: ", args.LR_max_entity_type)
     print("LR_max_relation: ", args.LR_max_relation)
     print("All_data:", args.All_data)
     print("Corpus_list:", args.Corpus_list)
     print("Task_list:", args.Task_list)
-    print("If_add_prototype:", args.If_add_prototype)
     print("Entity_Prep_Way:", args.Entity_Prep_Way)
-    print("If_soft_share:", args.If_soft_share)
-    print("Only_relation:", args.Only_relation)
     print("Task_weights_dic:", end="")
     for task in args.Task_list:
         print(args.Task_weights_dic[task], end=" ")
@@ -859,8 +721,5 @@ if __name__ == "__main__":
     print("Loss:", args.Loss)
     print("EARLY_STOP_NUM:", args.EARLY_STOP_NUM)
     print("Test_flag:", args.Test_flag)
-    print("Test_TAC_flag:", args.Test_TAC_flag)
-    print("Inner_test_TAC_flag:", args.Inner_test_TAC_flag)
-    print("Training_way:", args.Training_way)
 
     get_valid_performance(args.model_path)

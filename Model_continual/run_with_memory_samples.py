@@ -1,29 +1,23 @@
 #!/usr/bin/python3.7
 # -*- coding: utf-8 -*-
-import pickle
-import warnings
-import sys
-import shutil
 import argparse
-import os
-import math
 import copy
-import random
+import math
+import os
+import pickle
+import shutil
+import sys
+import warnings
+
 import numpy as np
 import torchtext
 from sklearn.cluster import KMeans
 
-from utils import print_execute_time, get_sent_len, Logger, record_each_performance, recored_detail_performance, \
-    EMA, get_entity_type_rep_dic, log_gradient_updates, log_parameter_and_gradient_statistics
+from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
 from metric import report_performance
 from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Entity_Span_And_Type_Classifier, \
     My_Relation_Classifier, My_Bert_Encoder, My_Model
-from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
-
-from torch.utils.tensorboard import SummaryWriter
-import torch
-import transformers
-import torch.optim as optim
+from utils import print_execute_time, Logger, recored_detail_performance
 
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
@@ -677,7 +671,7 @@ def get_valid_performance(model_path):
 
     NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Span_fields_dic, \
         TAGS_Entity_Type_fields_dic, TAGS_Entity_Span_And_Type_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic \
-        = prepared_NER_data(args.BATCH_SIZE, device, tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
+        = prepared_NER_data(tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
 
     train_set_list.append(NER_train_set)
     valid_set_list.append(NER_valid_set)
@@ -689,7 +683,7 @@ def get_valid_performance(model_path):
 
     if "relation" in args.Task_list:
         RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
-            = prepared_RC_data(args.BATCH_SIZE, device, tokenizer_RC, file_train_valid_test_list, relation_num_list)
+            = prepared_RC_data(tokenizer_RC, file_train_valid_test_list, relation_num_list)
         my_relation_classifier.create_classifers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
                                                  TAGS_Entity_Type_fields_dic)
 
@@ -706,9 +700,6 @@ def get_valid_performance(model_path):
         print("==========================" + str(i) + "=================================================")
         dic_res_PRF = my_train_valid_test.train_valid_fn()
         Average_Time_list.append(dic_res_PRF)  # increasing train cause wrong there !!
-
-    record_each_performance(file_param_record, args.Task_list, Average_Time_list)
-
 
 if __name__ == "__main__":
 

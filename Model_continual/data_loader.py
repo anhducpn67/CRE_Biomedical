@@ -3,7 +3,6 @@ import torch
 import json
 from utils import print_execute_time
 import os
-import random
 from itertools import combinations
 
 
@@ -54,10 +53,8 @@ def get_data_ID_2_corpus_dic(corpus_list):
     return data_ID_2_corpus_dic
 
 
-def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large, Test_TAC_flag):
+def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large):
     global v_list
-    if Test_TAC_flag:
-        corpus_list.append("TAC2019")
 
     with open("../data/corpus_information.json", "r") as f:
         raw_corpus_file_dic = eval(f.read())
@@ -172,7 +169,7 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
                     multi_task_file.write('\n')
 
 
-def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, entity_type_num_list):
+def prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_list):
     ID_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
     TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
                                                 unk_token=tokenizer.unk_token_id)
@@ -242,7 +239,7 @@ def prepared_NER_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list,
         TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic
 
 
-def prepared_RC_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, relation_list):
+def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
     ID_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
     TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
                                                 unk_token=tokenizer.unk_token_id)
@@ -285,12 +282,3 @@ def prepared_RC_data(BATCH_SIZE, device, tokenizer, file_train_valid_test_list, 
     #     repeat=False, device=device)
 
     return train_set, valid_set, test_set, TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic
-
-
-@print_execute_time
-def test_load(iterator):
-    for batch in iterator:
-        print(batch.tokens)
-        print(batch.entity_span)
-        print(batch.entity_span)
-        break
