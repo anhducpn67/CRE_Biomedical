@@ -33,15 +33,12 @@ parser.add_argument('--Task_weights_dic', default="{'entity_span':0.0, 'entity_t
 parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
                     help=["DDI", "Twi_ADE", "ADE", "CPR", "PPI"])
 parser.add_argument('--Random_ratio', default=1, type=float, help=">1 means mask all data from other corpus")
-parser.add_argument('--Group_num', default=40, type=int)
 parser.add_argument('--Training_way', default="Continual_Training", type=str)
 parser.add_argument('--Test_flag', action='store_true', default=False, help=[False, True])
-parser.add_argument('--Test_TAC_flag', action='store_true', default=False, help=[False, True])  # "TAC2019"
-parser.add_argument('--Inner_test_TAC_flag', action='store_true', default=False, help=[False, True])
 parser.add_argument('--Test_Corpus', default=["TAC2019"], nargs='+',
                     help=["ADE", "Twi_ADE", "DDI", "CPR", "TAC2019"])  # TAC
 parser.add_argument('--Test_model_file', type=str,
-                    default="../result/save_model/Model_['--ID', '66666', '--GPU', '0', '--Training_way', 'Multi_Task_Training', '--Entity_Prep_Way', 'entitiy_type_marker', '--Group_num', '1', '--Corpus_list', 'BioInfer', '--All_data']")
+                    default="../result/save_model/???")
 
 parser.add_argument('--Share_embedding', action='store_true', default=False, help=[False, True])
 parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
@@ -110,22 +107,6 @@ for k, v in args.Task_weights_dic.items():
     if k in args.Task_list:
         v_sum += v
 # assert v_sum == 1
-
-if args.Test_TAC_flag and (not args.Inner_test_TAC_flag):
-    args.Group_num = 1
-
-if args.Test_TAC_flag:
-    assert args.Test_flag
-
-if args.Inner_test_TAC_flag:
-    assert args.Test_flag
-    assert args.Test_TAC_flag
-    args.Min_train_performance_Report = 0
-    args.Average_Time = 1
-
-# if args.Test_TAC_flag :
-#     if not args.Test_flag:
-#         raise Exception("Test_TAC_flag and Test_flag must compatoble")
 
 if args.bert_model == "large":
     args.model_path = "../../../Data/embedding/biobert_large"
@@ -752,7 +733,7 @@ class Train_valid_test:
 def get_valid_performance(model_path):
     writer = SummaryWriter(tensor_board_path)
     corpus_file_dic, sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
-        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.bert_model, args.Test_TAC_flag)
+        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.bert_model)
 
     make_model_data(args.bert_model, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
                     args.All_data)
@@ -876,8 +857,6 @@ if __name__ == "__main__":
     print("Loss:", args.Loss)
     print("EARLY_STOP_NUM:", args.EARLY_STOP_NUM)
     print("Test_flag:", args.Test_flag)
-    print("Test_TAC_flag:", args.Test_TAC_flag)
-    print("Inner_test_TAC_flag:", args.Inner_test_TAC_flag)
     print("Training_way:", args.Training_way)
 
     get_valid_performance(args.model_path)
