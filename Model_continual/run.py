@@ -107,12 +107,11 @@ def select_data(all_embedding_representations):
 
 
 class Train_valid_test:
-    def __init__(self, data_ID_2_corpus_dic, my_model, tokenizer_list,
+    def __init__(self, data_ID_2_corpus_dic, my_model,
                  train_set_list, valid_set_list, test_set_list,
                  sep_corpus_file_dic):
 
         self.my_model = my_model.to(device)
-        self.tokenizer_list = tokenizer_list
 
         self.data_ID_2_corpus_dic = data_ID_2_corpus_dic
 
@@ -623,8 +622,6 @@ def get_valid_performance(model_path):
                     args.All_data)
     data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
                             "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
-    bert_NER = transformers.BertModel.from_pretrained(model_path)
-    tokenizer_NER = transformers.BertTokenizer.from_pretrained(model_path)
 
     bert_RC = transformers.BertModel.from_pretrained(model_path, is_decoder=False, add_cross_attention=False)
     tokenizer_RC = transformers.BertTokenizer.from_pretrained(model_path)
@@ -634,22 +631,12 @@ def get_valid_performance(model_path):
     ADDITIONAL_SPECIAL_TOKENS_end = ["[/Entity_only_entity_type_" + i + "]" for i in entitiy_type_list]
     ADDITIONAL_SPECIAL_TOKENS = ADDITIONAL_SPECIAL_TOKENS_start + ADDITIONAL_SPECIAL_TOKENS_end
 
-    tokenizer_NER.add_special_tokens({"additional_special_tokens": ADDITIONAL_SPECIAL_TOKENS})
-    bert_NER.resize_token_embeddings(len(tokenizer_NER))
     tokenizer_RC.add_special_tokens({"additional_special_tokens": ADDITIONAL_SPECIAL_TOKENS})
     bert_RC.resize_token_embeddings(len(tokenizer_RC))
 
-    bert_list = []
-    tokenizer_list = []
-    bert_NER = My_Bert_Encoder(bert_NER, tokenizer_NER, args, device)
-    bert_list.append(bert_NER)
-    tokenizer_list.append(tokenizer_NER)
-
     bert_RC = My_Bert_Encoder(bert_RC, tokenizer_RC, args, device)
-    bert_list.append(bert_RC)
-    tokenizer_list.append(tokenizer_RC)
 
-    my_model = My_Model(bert_list, args, device).to(device)
+    my_model = My_Model(bert_RC, args, device).to(device)
 
     my_entity_span_classifier = My_Entity_Span_Classifier(args, device)
     my_entity_type_classifier = My_Entity_Type_Classifier(args, device)
@@ -667,7 +654,7 @@ def get_valid_performance(model_path):
 
     NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Span_fields_dic, \
         TAGS_Entity_Type_fields_dic, TAGS_Entity_Span_And_Type_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic \
-        = prepared_NER_data(tokenizer_NER, file_train_valid_test_list, entity_type_num_list)
+        = prepared_NER_data(tokenizer_RC, file_train_valid_test_list, entity_type_num_list)
 
     train_set_list.append(NER_train_set)
     valid_set_list.append(NER_valid_set)
@@ -688,7 +675,7 @@ def get_valid_performance(model_path):
 
     my_model.add_classifers(classifiers_dic, args.Task_list)
 
-    my_train_valid_test = Train_valid_test(data_ID_2_corpus_dic, my_model, tokenizer_list,
+    my_train_valid_test = Train_valid_test(data_ID_2_corpus_dic, my_model,
                                            train_set_list, valid_set_list, test_set_list,
                                            sep_corpus_file_dic)
     Average_Time_list = []

@@ -470,11 +470,11 @@ class My_Relation_Classifier(nn.Module):
 
 
 class My_Model(nn.Module):
-    def __init__(self, bert_list, args, device):
+    def __init__(self, bert_RC, args, device):
         super(My_Model, self).__init__()
         self.to(device)
         self.device = device
-        self.bert_RC = bert_list[1]
+        self.bert_RC = bert_RC
         self.task_list = args.Task_list
         self.args = args
 
