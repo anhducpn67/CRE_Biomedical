@@ -17,7 +17,7 @@ from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic
 from metric import report_performance
 from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Entity_Span_And_Type_Classifier, \
     MyRelationClassifier, MyBertEncoder, MyModel
-from utils import print_execute_time, Logger, recored_detail_performance
+from utils import print_execute_time, Logger, record_detail_performance
 
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--GPU', default="2", type=str)
@@ -498,11 +498,11 @@ class Train_valid_test:
                     self.save_model(save_epoch)
                     file_detail_performance = f'../result/detail_performance/memory_continual_{str(args.ID)}/performance_memory_{str(corpus_list)}.txt'
                     os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
-                    recored_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
-                                               file_detail_performance,
-                                               dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
-                                               self.sep_corpus_file_dic, args.Task_list, corpus_list,
-                                               args.Average_Time)
+                    record_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
+                                              file_detail_performance,
+                                              dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
+                                              self.sep_corpus_file_dic, args.Task_list, corpus_list,
+                                              args.Average_Time)
                 else:
                     early_stop_num -= 1
 
@@ -607,10 +607,10 @@ class Train_valid_test:
 
             file_detail_performance = f'../result/detail_performance/memory_continual_{str(args.ID)}/performance_{str(corpus_name)}.txt'
             os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
-            recored_detail_performance(0, dic_total_sub_task_P_R_F, dic_test_PRF,
-                                       file_detail_performance.replace('.txt', "_TAC.txt"),
-                                       dic_corpus_task_micro_P_R_F, dic_TP_FN_FP,
-                                       self.sep_corpus_file_dic, args.Task_list, corpus_name, args.Average_Time)
+            record_detail_performance(0, dic_total_sub_task_P_R_F, dic_test_PRF,
+                                      file_detail_performance.replace('.txt', "_TAC.txt"),
+                                      dic_corpus_task_micro_P_R_F, dic_TP_FN_FP,
+                                      self.sep_corpus_file_dic, args.Task_list, corpus_name, args.Average_Time)
 
 
 @print_execute_time

@@ -116,9 +116,6 @@ def report_relation_PRF(list_batches_res, TAGS_Relation_fileds_dic, dic_sub_task
 
 
 def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, classifiers_dic, sep_corpus_file_dic, valid_flag):
-    """
-    :param dic_batches_res:  {"BIOES": [(one_batch_pred_sub_res, [batch.entity_span] ], "entity_type":[], "relation":[]}, len=batch_size
-    """
     dic_PRF = {}
     dic_total_sub_task_P_R_F = {}
     dic_corpus_task_micro_P_R_F = {}

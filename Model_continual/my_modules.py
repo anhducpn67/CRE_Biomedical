@@ -77,18 +77,22 @@ class MyRelationClassifier(nn.Module):
         self.ignore_index = len(self.TAGS_my_types_classification.vocab)
         self.args = args
         self.tokenizer_RC = tokenizer_RC
+        self.linear_transform = nn.Linear(self.args.Word_embedding_size * 2, self.args.Word_embedding_size)
+        self.layer_normalization = nn.LayerNorm([self.args.Word_embedding_size])
         if self.args.Entity_Prep_Way == "entity_type_marker":
-            self.linear_transform = nn.Linear(self.args.Word_embedding_size * 2, self.args.Word_embedding_size)
-            self.layer_normalization = nn.LayerNorm([self.args.Word_embedding_size])
             self.relation_input_dim = self.args.Word_embedding_size
         else:
             self.relation_input_dim = 2 * self.args.Word_embedding_size
+        if self.args.Weight_Loss:
+            self.yes_no_weight = torch.tensor([self.args.Min_weight, self.args.Max_weight], device=self.device)
+            print("self.yes_no_weight", self.yes_no_weight)
+        else:
+            self.yes_no_weight = None
 
     def get_classifier(self, i):
         return getattr(self, 'my_classifier_{0}'.format(i))
 
-    def create_classifiers(self, TAGS_Types_fields_dic, TAGS_sampled_entity_span_fields_dic,
-                           TAGS_Entity_Type_fields_dic):
+    def create_classifiers(self, TAGS_Types_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_Entity_Type_fields_dic):
         self.TAGS_Types_fields_dic = TAGS_Types_fields_dic
         self.TAGS_Entity_Type_fields_dic = TAGS_Entity_Type_fields_dic
         self.TAGS_sampled_entity_span_fields_dic = TAGS_sampled_entity_span_fields_dic
@@ -99,12 +103,6 @@ class MyRelationClassifier(nn.Module):
             my_classifier = MyClassifier(self.TAGS_my_types_classification, self.relation_input_dim, self.device,
                                          ignore_index=self.ignore_index)
             setattr(self, 'my_classifier_{0}'.format(sub_task), my_classifier)
-
-        if self.args.Weight_Loss:
-            self.yes_no_weight = torch.tensor([self.args.Min_weight, self.args.Max_weight], device=self.device)
-            print("self.yes_no_weight", self.yes_no_weight)
-        else:
-            self.yes_no_weight = None
 
     def forward(self, batch_added_marker_entity_span_vec):
         loss_list = []
@@ -278,7 +276,6 @@ class MyRelationClassifier(nn.Module):
             sub_task_batch_gold = batch_gold_for_loss_sub_task_tensor[sub_task_index]
             ce_loss = F.cross_entropy(sub_task_batch_pred.permute(0, 2, 1), sub_task_batch_gold,
                                       ignore_index=self.ignore_index, weight=self.yes_no_weight, reduction='mean')
-            # loss_list.append(ce_loss)
             loss_list.append(ce_loss)
         return sum(loss_list) / len(loss_list)
 
@@ -294,7 +291,6 @@ class MyRelationClassifier(nn.Module):
 
             criterion = nn.BCEWithLogitsLoss(pos_weight=self.yes_no_weight, reduction='mean')
             bec_loss = criterion(sub_task_batch_pred, target_tensor)
-            # loss_list.append(bec_loss)
             loss_list.append(bec_loss)
         return sum(loss_list) / len(loss_list)
 
@@ -420,13 +416,11 @@ class MyModel(nn.Module):
 
         batch_NER = batch_list[0]
 
-        batch_gold_and_pred_entity_res, entity_span_batch_loss = self.entity_span_extraction(batch_NER)
+        batch_gold_and_pred_entity_res = self.entity_span_extraction(batch_NER)
         dic_res_one_batch["entity_span"] = batch_gold_and_pred_entity_res
-        dic_loss_one_batch["entity_span"] = entity_span_batch_loss
 
-        batch_gold_and_pred_entity_type_res, one_batch_entity_type_loss = self.entity_type_extraction(batch_NER)
+        batch_gold_and_pred_entity_type_res = self.entity_type_extraction(batch_NER)
         dic_res_one_batch["entity_type"] = batch_gold_and_pred_entity_type_res
-        dic_loss_one_batch["entity_type"] = one_batch_entity_type_loss
 
         batch_RC = batch_list[1]
 
@@ -440,7 +434,7 @@ class MyModel(nn.Module):
 
     def entity_span_extraction(self, batch):
         """ Entity span extraction (for only span, my_ensembled_relation_classifier = one classifier) """
-        return (batch.entity_span.tolist(), None), torch.tensor(0.0).cuda()
+        return batch.entity_span.tolist(), None
 
     def entity_type_extraction(self, batch):
         batch_gold_res_list = []
@@ -457,8 +451,7 @@ class MyModel(nn.Module):
                             gold_one_sent_all_sub_task_res_dic[sub_task].append(temp_pair)
             batch_gold_res_list.append(gold_one_sent_all_sub_task_res_dic)
 
-        batch_gold_and_pred_entity_type_res = (batch_gold_res_list, None)
-        return batch_gold_and_pred_entity_type_res, torch.tensor(0.0).cuda()
+        return batch_gold_res_list, None
 
     def relation_extraction(self, batch, batch_entity, batch_entity_type):
         """ Relation extraction """
