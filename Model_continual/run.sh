@@ -1,15 +1,13 @@
 
-#python run.py --ID 4 --GPU 0 --Training_way "Continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Corpus_list "Combine_ADE" "DDI" "CPR" --MEMORY_SIZE 50 --Only_relation --All_data
-#
-#python run.py --ID 5 --GPU 0 --Training_way "Continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Corpus_list "Combine_ADE" "DDI" "CPR" --MEMORY_SIZE 20 --Only_relation --All_data
-#
-#python run.py --ID 6 --GPU 0 --Training_way "Continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Corpus_list "CPR" "DDI" "Combine_ADE" --MEMORY_SIZE 100 --Only_relation --All_data
-#
-#python run.py --ID 7 --GPU 0 --Training_way "Continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Corpus_list "DDI" "CPR" "Combine_ADE" --MEMORY_SIZE 100 --Only_relation --All_data
+#python run.py --ID 250 --Entity_Prep_Way "entity_type_marker" --Corpus_list "Combine_ADE" "CPR" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 251 --Entity_Prep_Way "entity_type_marker" --Corpus_list "Combine_ADE" "CPR" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 252 --Entity_Prep_Way "entity_type_marker" --Corpus_list "Combine_ADE" "CPR" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 253 --Entity_Prep_Way "entity_type_marker" --Corpus_list "Combine_ADE" "CPR" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 254 --Entity_Prep_Way "entity_type_marker" --Corpus_list "Combine_ADE" "CPR" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 260 --Entity_Prep_Way "entity_type_marker" --Corpus_list "CPR" "Combine_ADE" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 261 --Entity_Prep_Way "entity_type_marker" --Corpus_list "CPR" "Combine_ADE" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 262 --Entity_Prep_Way "entity_type_marker" --Corpus_list "CPR" "Combine_ADE" "DDI" --MEMORY_SIZE 1000 --All_data
+#python run.py --ID 263 --Entity_Prep_Way "entity_type_marker" --Corpus_list "CPR" "Combine_ADE" "DDI" --MEMORY_SIZE 1000 --All_data
 
-python run.py --ID 202 --GPU 0 --Training_way "Continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Corpus_list "Combine_ADE" "DDI" "CPR" --MEMORY_SIZE 100 --Only_relation --All_data
-
-#python run.py --ID 9 --GPU 0 --Training_way "Continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Corpus_list "Combine_ADE" "DDI" "CPR" --MEMORY_SIZE 100 --BATCH_SIZE 50 --Only_relation --All_data
-
-
-#python run_with_memory_samples.py --ID 3 --GPU 0 --Training_way "Continual_Training" --Entity_Prep_Way "entitiy_type_marker" --Corpus_list "Combine_ADE" "DDI" "CPR" --Only_relation --All_data
+#python run.py --ID 1001 --Entity_Prep_Way "entity_type_marker" --Corpus_list "Combine_ADE" "DDI" "CPR" --MEMORY_SIZE 100 --All_data
+python run.py --ID 1003 --Entity_Prep_Way "entity_type_marker" --Corpus_list "Combine_ADE" "DDI" "CPR" --MEMORY_SIZE 100 --All_data

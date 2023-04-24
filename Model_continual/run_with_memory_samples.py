@@ -16,7 +16,7 @@ from sklearn.cluster import KMeans
 from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
 from metric import report_performance
 from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Entity_Span_And_Type_Classifier, \
-    My_Relation_Classifier, My_Bert_Encoder, My_Model
+    MyRelationClassifier, MyBertEncoder, MyModel
 from utils import print_execute_time, Logger, recored_detail_performance
 
 parser = argparse.ArgumentParser(description="Bert Model")
@@ -642,20 +642,20 @@ def get_valid_performance(model_path):
 
     bert_list = []
     tokenizer_list = []
-    bert_NER = My_Bert_Encoder(bert_NER, tokenizer_NER, args, device)
+    bert_NER = MyBertEncoder(bert_NER, tokenizer_NER, args, device)
     bert_list.append(bert_NER)
     tokenizer_list.append(tokenizer_NER)
 
-    bert_RC = My_Bert_Encoder(bert_RC, tokenizer_RC, args, device)
+    bert_RC = MyBertEncoder(bert_RC, tokenizer_RC, args, device)
     bert_list.append(bert_RC)
     tokenizer_list.append(tokenizer_RC)
 
-    my_model = My_Model(bert_list, args, device).to(device)
+    my_model = MyModel(bert_list, args, device).to(device)
 
     my_entity_span_classifier = My_Entity_Span_Classifier(args, device)
     my_entity_type_classifier = My_Entity_Type_Classifier(args, device)
     my_entity_span_and_type_classifier = My_Entity_Span_And_Type_Classifier(args, device)
-    my_relation_classifier = My_Relation_Classifier(args, tokenizer_RC, device)
+    my_relation_classifier = MyRelationClassifier(args, tokenizer_RC, device)
     classifiers_dic = dict(zip(["entity_span", "entity_type", "entity_span_and_type", "relation"],
                                [my_entity_span_classifier, my_entity_type_classifier,
                                 my_entity_span_and_type_classifier, my_relation_classifier]))
@@ -677,21 +677,21 @@ def get_valid_performance(model_path):
     valid_set_list.append(NER_valid_set)
     test_set_list.append(NER_test_set)
 
-    my_entity_span_classifier.create_classifers(TAGS_Entity_Span_fields_dic)
-    my_entity_type_classifier.create_classifers(TAGS_Entity_Type_fields_dic, TAGS_sep_entity_fields_dic)
-    my_entity_span_and_type_classifier.create_classifers(TAGS_Entity_Span_And_Type_fields_dic)
+    my_entity_span_classifier.create_classifiers(TAGS_Entity_Span_fields_dic)
+    my_entity_type_classifier.create_classifiers(TAGS_Entity_Type_fields_dic, TAGS_sep_entity_fields_dic)
+    my_entity_span_and_type_classifier.create_classifiers(TAGS_Entity_Span_And_Type_fields_dic)
 
     if "relation" in args.Task_list:
         RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
             = prepared_RC_data(tokenizer_RC, file_train_valid_test_list, relation_num_list)
-        my_relation_classifier.create_classifers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
-                                                 TAGS_Entity_Type_fields_dic)
+        my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
+                                                  TAGS_Entity_Type_fields_dic)
 
         train_set_list.append(RC_train_set)
         valid_set_list.append(RC_valid_set)
         test_set_list.append(RC_test_set)
 
-    my_model.add_classifers(classifiers_dic, args.Task_list)
+    my_model.add_classifiers(classifiers_dic, args.Task_list)
     my_train_valid_test = Train_valid_test(data_ID_2_corpus_dic, my_model, tokenizer_list,
                                            train_set_list, valid_set_list, test_set_list,
                                            sep_corpus_file_dic, writer)

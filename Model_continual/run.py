@@ -18,7 +18,7 @@ import torch.optim as optim
 
 from utils import print_execute_time, get_sent_len, Logger, recored_detail_performance
 from metric import report_performance
-from my_modules import My_Entity_Span_Classifier, My_Entity_Type_Classifier, My_Relation_Classifier, My_Bert_Encoder, My_Model
+from my_modules import MyRelationClassifier, MyBertEncoder, MyModel
 from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
 
 parser = argparse.ArgumentParser(description="Bert Model")
@@ -29,8 +29,8 @@ parser.add_argument('--All_data', action='store_true', default=False)
 parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=3, type=int)
-parser.add_argument('--Min_train_performance_Report', default=1, type=int)
+parser.add_argument('--EPOCH', default=30, type=int)
+parser.add_argument('--Min_train_performance_Report', default=5, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
 
@@ -46,7 +46,7 @@ parser.add_argument('--Test_model_file', type=str,
                     default="../result/save_model/???")
 
 parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
-                    help="\"standard\" or \"entitiy_type_marker\"")
+                    help="\"standard\" or \"entity_type_marker\"")
 
 parser.add_argument('--Optim', default="AdamW", type=str, help="AdamW")
 parser.add_argument('--LR_max_bert', default=1e-5, type=float)
@@ -106,12 +106,13 @@ def select_data(all_embedding_representations):
     return mem_set
 
 
-class Train_valid_test:
+class TrainValidTest:
     def __init__(self, data_ID_2_corpus_dic, my_model,
                  train_set_list, valid_set_list, test_set_list,
                  sep_corpus_file_dic):
 
         self.my_model = my_model.to(device)
+        self.model_state_dic = {}
 
         self.data_ID_2_corpus_dic = data_ID_2_corpus_dic
 
@@ -134,10 +135,9 @@ class Train_valid_test:
 
         self.false_flag = False
 
-        if "relation" in args.Task_list:
-            self.optimizer_bert_RC = OPTIMIZER(
-                params=filter(lambda p: p.requires_grad, self.my_model.bert_RC.parameters()), lr=args.LR_max_bert,
-                weight_decay=args.L2)
+        self.optimizer_bert_RC = OPTIMIZER(
+            params=filter(lambda p: p.requires_grad, self.my_model.bert_RC.parameters()), lr=args.LR_max_bert,
+            weight_decay=args.L2)
 
         for task in ["relation"]:
             # set tasks optim
@@ -173,7 +173,6 @@ class Train_valid_test:
         return return_data_dict
 
     def save_model(self, epoch):
-        self.model_state_dic = {}
         self.model_state_dic['epoch'] = epoch
         self.model_state_dic['my_model'] = self.my_model.state_dict()
         torch.save(self.model_state_dic, file_model_save)
@@ -221,10 +220,7 @@ class Train_valid_test:
         #                     for p in no_need_classifer.parameters():
         #                         p.requires_grad = False
 
-        if "relation" in args.Task_list:
-            temp_my_iterator_list = [[ner, rc] for ner, rc in zip(iterator_dic[0], iterator_dic[1])]
-        else:
-            raise Exception("error!")
+        temp_my_iterator_list = [[ner, rc] for ner, rc in zip(iterator_dic[0], iterator_dic[1])]
 
         if valid_test_flag == "train":
             total_examples = 0
@@ -289,9 +285,8 @@ class Train_valid_test:
 
                 batch_loss.backward()
 
-                if "relation" in args.Task_list:
-                    self.optimizer_bert_RC.step()
-                    self.optimizer_bert_RC.zero_grad()
+                self.optimizer_bert_RC.step()
+                self.optimizer_bert_RC.zero_grad()
 
                 for task in ["relation"]:
                     getattr(self, "optimizer_" + str(task)).step()
@@ -328,7 +323,7 @@ class Train_valid_test:
             dic_loss["relation"] = epoch_relation_loss / count
             epoch_loss += epoch_relation_loss / count
 
-        dic_loss["average"] = epoch_loss / len(self.my_model.task_list)
+        dic_loss["average"] = epoch_loss
 
         return dic_loss, dic_batches_res
 
@@ -452,7 +447,7 @@ class Train_valid_test:
 
             for task in ["relation"]:
                 print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
-            shutil.copy(file_model_save, file_model_save + "_" + corpus_name)
+            # shutil.copy(file_model_save, file_model_save + "_" + corpus_name)
             # ======================== Create memorized samples for current task ========================
             print(f"==================== Create memorized samples for {corpus_name} ====================")
             self.set_iterator_for_specific_corpus([corpus_name])
@@ -464,11 +459,11 @@ class Train_valid_test:
                 batch_NER_gold_res_list = []
                 for sent_index in range(len(batch_NER)):
                     gold_one_sent_all_sub_task_res_dic = {}
-                    for sub_task in self.my_model.my_entity_type_classifier.my_entity_type_sub_task_list:
+                    for sub_task in self.my_model.my_relation_classifier.my_entity_type_sub_task_list:
                         gold_one_sent_all_sub_task_res_dic.setdefault(sub_task, [])
                         for entity_pair in getattr(batch_NER, sub_task)[sent_index]:
                             entity_pair_span = \
-                                self.my_model.my_entity_type_classifier.TAGS_Types_fileds_dic[sub_task][1].vocab.itos[
+                                self.my_model.my_relation_classifier.TAGS_Entity_Type_fields_dic[sub_task][1].vocab.itos[
                                     entity_pair]
                             if str(entity_pair_span) != '[PAD]':
                                 temp_pair = sorted(eval(entity_pair_span))
@@ -482,7 +477,7 @@ class Train_valid_test:
                     for sub_task in self.my_model.my_relation_classifier.my_relation_sub_task_list:
                         for entity_pair in getattr(batch_RC, sub_task)[sent_index]:
                             entity_pair_span = \
-                                self.my_model.my_relation_classifier.TAGS_Types_fileds_dic[sub_task][1].vocab.itos[
+                                self.my_model.my_relation_classifier.TAGS_Types_fields_dic[sub_task][1].vocab.itos[
                                     entity_pair]
                             if entity_pair_span != "[PAD]":
                                 temp_pair = sorted(eval(entity_pair_span))
@@ -495,7 +490,7 @@ class Train_valid_test:
                 batch_entity = []
                 batch_entity_type = []
                 batch_pred_entity_res = batch_RC.sampled_entity_span
-                TAGS_filed = self.my_model.my_relation_classifier.TAGS_sampled_entity_span_fileds_dic["sampled_entity_span"][1]
+                TAGS_filed = self.my_model.my_relation_classifier.TAGS_sampled_entity_span_fields_dic["sampled_entity_span"][1]
                 for sent_index, one_sent_entity in enumerate(batch_pred_entity_res):
                     one_sent_temp_list = one_sent_entity[:get_sent_len(one_sent_entity, TAGS_filed)]  # deal with PAD
                     one_sent_temp_list = [eval(TAGS_filed.vocab.itos[int(i)]) for i in
@@ -507,12 +502,11 @@ class Train_valid_test:
 
                 with torch.no_grad():
                     batch_added_marker_entity_span_vec, batch_entity_pair_span_list, batch_sent_len_list = \
-                        self.my_model.my_relation_classifier.memory_get_entity_pair_span_vec(batch_entity=batch_entity,
-                                                                                             batch_tokens=batch_RC.tokens,
-                                                                                             batch_entity_type=batch_entity_type,
-                                                                                             batch_gold_RE=batch_RE_gold_res_list,
-                                                                                             bert_RC=self.my_model.bert_RC,
-                                                                                             Entity_type_TAGS_Types_fileds_dic=self.my_model.my_entity_type_classifier.total_entity_type_to_index_dic)
+                        self.my_model.my_relation_classifier.memory_get_entity_pair_vec(batch_entity=batch_entity,
+                                                                                        batch_tokens=batch_RC.tokens,
+                                                                                        batch_entity_type=batch_entity_type,
+                                                                                        batch_gold_RE=batch_RE_gold_res_list,
+                                                                                        bert_RC=self.my_model.bert_RC)
                 # Step 4
                 for sent_index in range(len(batch_RC)):
                     ID_example = int(batch_RC.ID[sent_index])
@@ -524,7 +518,7 @@ class Train_valid_test:
             self.total_memorized_samples += self.memorized_samples[corpus_name]
             print(f"Number representation: ", len(all_embedding_representations))
             print(f"Number examples in memorized samples {corpus_name}: ", len(self.memorized_samples[corpus_name]))
-            pickle.dump(self.memorized_samples, open("memorized_samples.pkl", "wb"))
+            pickle.dump(self.memorized_samples, open(f"memorized_samples_{args.ID}.pkl", "wb"))
             # ======================== Testing ========================
             self.test_fn(idx_corpus, file_model_save)
         return record_best_dic
@@ -579,11 +573,7 @@ class Train_valid_test:
 
                     dic_batches_res["ID_list"].append(batch_list[0].ID)
                     dic_batches_res["tokens_list"].append(batch_list[0].tokens)
-                    for task in self.my_model.task_list:
-                        try:
-                            dic_batches_res[task].append(dic_res_one_batch[task])
-                        except:
-                            pass
+                    dic_batches_res["relation"].append(dic_res_one_batch["relation"])
 
                 epoch_loss = 0
                 dic_loss = {"average": 0}
@@ -597,7 +587,7 @@ class Train_valid_test:
                     dic_loss["relation"] = epoch_relation_loss / count
                     epoch_loss += epoch_relation_loss / count
 
-                dic_loss["average"] = epoch_loss / len(self.my_model.task_list)
+                dic_loss["average"] = epoch_loss
 
             dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
                 = report_performance(corpus_name, 0, dic_loss, dic_batches_res,
@@ -626,23 +616,20 @@ def get_valid_performance(model_path):
     bert_RC = transformers.BertModel.from_pretrained(model_path, is_decoder=False, add_cross_attention=False)
     tokenizer_RC = transformers.BertTokenizer.from_pretrained(model_path)
 
-    entitiy_type_list = ["Drug", "Gene", "Disease"]
-    ADDITIONAL_SPECIAL_TOKENS_start = ["[Entity_only_entity_type_" + i + "]" for i in entitiy_type_list]
-    ADDITIONAL_SPECIAL_TOKENS_end = ["[/Entity_only_entity_type_" + i + "]" for i in entitiy_type_list]
+    entity_type_list = ["Drug", "Gene", "Disease"]
+    ADDITIONAL_SPECIAL_TOKENS_start = ["[Entity_only_entity_type_" + i + "]" for i in entity_type_list]
+    ADDITIONAL_SPECIAL_TOKENS_end = ["[/Entity_only_entity_type_" + i + "]" for i in entity_type_list]
     ADDITIONAL_SPECIAL_TOKENS = ADDITIONAL_SPECIAL_TOKENS_start + ADDITIONAL_SPECIAL_TOKENS_end
 
     tokenizer_RC.add_special_tokens({"additional_special_tokens": ADDITIONAL_SPECIAL_TOKENS})
     bert_RC.resize_token_embeddings(len(tokenizer_RC))
 
-    bert_RC = My_Bert_Encoder(bert_RC, tokenizer_RC, args, device)
+    bert_RC = MyBertEncoder(bert_RC, tokenizer_RC, args, device)
 
-    my_model = My_Model(bert_RC, args, device).to(device)
+    my_model = MyModel(bert_RC, args, device)
 
-    my_entity_span_classifier = My_Entity_Span_Classifier(args, device)
-    my_entity_type_classifier = My_Entity_Type_Classifier(args, device)
-    my_relation_classifier = My_Relation_Classifier(args, tokenizer_RC, device)
-    classifiers_dic = dict(zip(["entity_span", "entity_type", "relation"],
-                               [my_entity_span_classifier, my_entity_type_classifier, my_relation_classifier]))
+    my_relation_classifier = MyRelationClassifier(args, tokenizer_RC, device)
+    classifiers_dic = dict(zip(["relation"], [my_relation_classifier]))
 
     train_set_list = []
     valid_set_list = []
@@ -660,24 +647,21 @@ def get_valid_performance(model_path):
     valid_set_list.append(NER_valid_set)
     test_set_list.append(NER_test_set)
 
-    my_entity_span_classifier.create_classifers(TAGS_Entity_Span_fields_dic)
-    my_entity_type_classifier.create_classifers(TAGS_Entity_Type_fields_dic, TAGS_sep_entity_fields_dic)
-
     if "relation" in args.Task_list:
         RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
             = prepared_RC_data(tokenizer_RC, file_train_valid_test_list, relation_num_list)
-        my_relation_classifier.create_classifers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
-                                                 TAGS_Entity_Type_fields_dic)
+        my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
+                                                  TAGS_Entity_Type_fields_dic)
 
         train_set_list.append(RC_train_set)
         valid_set_list.append(RC_valid_set)
         test_set_list.append(RC_test_set)
 
-    my_model.add_classifers(classifiers_dic, args.Task_list)
+    my_model.add_classifiers(classifiers_dic)
 
-    my_train_valid_test = Train_valid_test(data_ID_2_corpus_dic, my_model,
-                                           train_set_list, valid_set_list, test_set_list,
-                                           sep_corpus_file_dic)
+    my_train_valid_test = TrainValidTest(data_ID_2_corpus_dic, my_model,
+                                         train_set_list, valid_set_list, test_set_list,
+                                         sep_corpus_file_dic)
     Average_Time_list = []
     for i in range(args.Average_Time):
         print("==========================" + str(i) + "=================================================")
@@ -686,11 +670,6 @@ def get_valid_performance(model_path):
 
 
 if __name__ == "__main__":
-
-    if args.Entity_Prep_Way != "standard":
-        print("warning, Entity_Prep_Way is not default : ", args.Entity_Prep_Way)
-        print()
-
     print("GPU:", args.GPU)
     print("Bert:", args.BERT_MODEL)
     print("Batch size: ", args.BATCH_SIZE)

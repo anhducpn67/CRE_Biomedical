@@ -1,15 +1,3 @@
-def get_sent_len(token_list, vocab):
-    sentence_length = 0
-    try:
-        for token in token_list:
-            if int(token) != vocab["[PAD]"]:
-                sentence_length += 1
-    except:
-        print("!")
-        pass
-    return sentence_length
-
-
 def combine_all_class_for_total_PRF(each_TP_FN_FP):
     total_TP = 0
     total_FN = 0
@@ -161,8 +149,7 @@ def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, classifier
         dic_sub_task_P_R_F, \
         dic_corpus_task_micro_P_R_F_relation, \
         accumulated_each_class_total_TP_FN_FP = report_relation_PRF(dic_batches_res["relation"],
-                                                                    classifiers_dic[
-                                                                        "relation"].TAGS_Types_fileds_dic,
+                                                                    classifiers_dic["relation"].TAGS_Types_fields_dic,
                                                                     dic_sub_task_corpus, corpus_list)
     print('          relation    : Loss: %.3f, P: %.3f, R: %.3f, F: %.3f \t\n\t\t\t'
           % (dic_loss["relation"], relation_micro_P, relation_micro_R, relation_micro_F))
@@ -174,31 +161,3 @@ def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, classifier
     dic_TP_FN_FP["relation"] = accumulated_each_class_total_TP_FN_FP
 
     return dic_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP
-
-
-def make_relation_test_data(TAGS_Relation_fileds_dic):
-    gold_res = {}
-    pre_res = {}
-    key_list = []
-    for key in TAGS_Relation_fileds_dic.keys():
-        gold_res[key] = []
-        pre_res[key] = []
-        key_list.append(key)
-
-    # gold data
-    gold_index_list = [0]
-    gold_pair_list = [
-        ['([24, 25, 26, 27], [29, 30, 31])', '([45, 46, 47], [80, 81, 82])'],
-    ]
-    for gold_index, gold_pair in zip(gold_index_list, gold_pair_list):
-        gold_res[key_list[gold_index]].extend(gold_pair)
-
-    # pre data
-    pre_index_list = [0]
-    pre_pair_list = [
-        ['([24, 25, 26, 27], [29, 30, 31])', '([45, 46, 47], [80, 81, 82])'],
-    ]
-    for pre_index, pre_pair in zip(pre_index_list, pre_pair_list):
-        pre_res[key_list[pre_index]].extend(pre_pair)
-
-    return [([gold_res], [pre_res])]
