@@ -399,7 +399,7 @@ class My_Relation_Classifier(nn.Module):
                                                                     Entity_type_TAGS_Types_fileds_dic)
                         sent_entity_pair_rep_list.append(one_sent_rep)
                 else:
-                    sent_entity_pair_rep_list.append(torch.tensor([0] * self.relation_input_dim * 2).float().to(self.device))
+                    sent_entity_pair_rep_list.append(torch.tensor([0] * self.relation_input_dim).float().to(self.device))
 
                 batch_entity_pair_vec_list.append(torch.stack(sent_entity_pair_rep_list))
 
