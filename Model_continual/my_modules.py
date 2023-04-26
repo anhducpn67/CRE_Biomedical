@@ -241,9 +241,6 @@ class My_Relation_Classifier(nn.Module):
         self.ignore_index = len(self.TAGS_my_types_classification.vocab)
         self.args = args
         self.tokenizer_RC = tokenizer_RC
-        if self.args.Entity_Prep_Way == "entitiy_type_marker":
-            self.linear_transform = nn.Linear(self.args.Word_embedding_size * 2, self.args.Word_embedding_size, bias=True)
-            self.layer_normalization = nn.LayerNorm([self.args.Word_embedding_size])
 
     def get_classifer(self, i):
         return getattr(self, 'my_classifer_{0}'.format(i))
@@ -258,7 +255,7 @@ class My_Relation_Classifier(nn.Module):
         if self.args.If_add_prototype or self.args.Entity_Prep_Way == "entity_type_embedding":
             self.relation_input_dim = self.args.Word_embedding_size * 2 + self.args.Type_emb_num * 2
         if self.args.Entity_Prep_Way == "entitiy_type_marker":
-            self.relation_input_dim = self.args.Word_embedding_size
+            self.relation_input_dim = self.args.Word_embedding_size * 2
 
         for sub_task in self.my_relation_sub_task_list:
             my_classifer = My_Classifer(self.TAGS_my_types_classification, self.relation_input_dim, self.device, ignore_index=self.ignore_index)
@@ -407,8 +404,6 @@ class My_Relation_Classifier(nn.Module):
                 batch_entity_pair_vec_list.append(torch.stack(sent_entity_pair_rep_list))
 
             batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list, batch_first=True, padding_value=padding_value)
-
-            batch_added_marker_entity_span_vec = self.linear_transform(batch_added_marker_entity_span_vec)
 
             return batch_added_marker_entity_span_vec, batch_entity_pair_span_list, batch_sent_len_list
 
