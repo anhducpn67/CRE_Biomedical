@@ -29,8 +29,8 @@ parser.add_argument('--All_data', action='store_true', default=False)
 parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
 parser.add_argument('--Average_Time', default=1, type=int)
-parser.add_argument('--EPOCH', default=30, type=int)
-parser.add_argument('--Min_train_performance_Report', default=5, type=int)
+parser.add_argument('--EPOCH', default=3, type=int)
+parser.add_argument('--Min_train_performance_Report', default=1, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
 
@@ -47,10 +47,8 @@ parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
                     help="\"standard\" or \"entity_type_marker\"")
 
 parser.add_argument('--Optim', default="AdamW", type=str, help="AdamW")
-parser.add_argument('--LR_max_bert', default=1e-5, type=float)
-parser.add_argument('--LR_min_bert', default=1e-6, type=float)
-parser.add_argument('--LR_max_relation', default=1e-4, type=float)
-parser.add_argument('--LR_min_relation', default=5e-6, type=float)
+parser.add_argument('--LR_bert', default=1e-5, type=float)
+parser.add_argument('--LR_classifier', default=1e-4, type=float)
 parser.add_argument('--L2', default=1e-2, type=float)
 
 parser.add_argument('--Weight_Loss', action='store_true', default=True)
@@ -64,8 +62,9 @@ args = parser.parse_args()
 os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 warnings.filterwarnings("ignore")
 
-file_model_save = "../result/save_model/" + "Model_" + str(sys.argv[1:])
-file_training_performance = '../result/detail_training/training_' + str(sys.argv[1:]) + '.txt'
+file_model_save = "../result/save_model/" + f"Model_{args.ID}"
+file_memory_save = "../result/save_memorized_samples/" + f"memory_{args.ID}.pkl"
+file_training_performance = f'../result/detail_training/training_performance_{args.ID}.txt'
 
 sys.stdout = Logger(filename=file_training_performance)
 
@@ -80,7 +79,7 @@ elif args.BERT_MODEL == "base":
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
-device = torch.device("cuda")
+device = torch.device("cpu")
 OPTIMIZER = eval("optim." + args.Optim)
 SEED = 1234
 torch.manual_seed(SEED)
@@ -131,16 +130,14 @@ class TrainValidTest:
         self.total_memorized_samples = []
 
         self.optimizer_bert_RC = OPTIMIZER(
-            params=filter(lambda p: p.requires_grad, self.my_model.bert_RC.parameters()), lr=args.LR_max_bert,
+            params=filter(lambda p: p.requires_grad, self.my_model.encoder.parameters()), lr=args.LR_bert,
             weight_decay=args.L2)
 
         for task in ["relation"]:
             # set tasks optim
             my_parameters = getattr(self.my_model, "my_" + task + "_classifier").parameters()
-            my_lr_min = getattr(args, "LR_min_" + str(task))
-            my_lr_max = getattr(args, "LR_max_" + str(task))
             setattr(self, "optimizer_" + str(task), OPTIMIZER(params=filter(lambda p: p.requires_grad, my_parameters),
-                                                              lr=my_lr_max, weight_decay=args.L2))
+                                                              lr=args.LR_classifier, weight_decay=args.L2))
 
     def get_dic_data(self, set_list):
         NER_data_dic = {}
@@ -390,7 +387,7 @@ class TrainValidTest:
                                                                                         batch_tokens=batch_RC.tokens,
                                                                                         batch_entity_type=batch_entity_type,
                                                                                         batch_gold_RE=batch_RE_gold_res_list,
-                                                                                        bert_RC=self.my_model.bert_RC)
+                                                                                        bert_RC=self.my_model.encoder)
                 # Step 4
                 for sent_index in range(len(batch_RC)):
                     ID_example = int(batch_RC.ID[sent_index])
@@ -402,7 +399,7 @@ class TrainValidTest:
             self.total_memorized_samples += self.memorized_samples[corpus_name]
             print(f"Number representation: ", len(all_embedding_representations))
             print(f"Number examples in memorized samples {corpus_name}: ", len(self.memorized_samples[corpus_name]))
-            pickle.dump(self.memorized_samples, open(f"memorized_samples_{args.ID}.pkl", "wb"))
+            pickle.dump(self.memorized_samples, open(file_memory_save, "wb"))
             # ======================== Testing ========================
             self.test_fn(idx_corpus, file_model_save)
         return record_best_dic
@@ -471,27 +468,23 @@ def get_valid_performance(model_path):
     data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
                             "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
 
-    bert_RC = transformers.BertModel.from_pretrained(model_path, is_decoder=False, add_cross_attention=False)
-    tokenizer_RC = transformers.BertTokenizer.from_pretrained(model_path)
+    bert = transformers.BertModel.from_pretrained(model_path, is_decoder=False, add_cross_attention=False)
+    tokenizer = transformers.BertTokenizer.from_pretrained(model_path)
 
     entity_type_list = ["Drug", "Gene", "Disease"]
     ADDITIONAL_SPECIAL_TOKENS_start = ["[Entity_only_entity_type_" + i + "]" for i in entity_type_list]
     ADDITIONAL_SPECIAL_TOKENS_end = ["[/Entity_only_entity_type_" + i + "]" for i in entity_type_list]
     ADDITIONAL_SPECIAL_TOKENS = ADDITIONAL_SPECIAL_TOKENS_start + ADDITIONAL_SPECIAL_TOKENS_end
 
-    tokenizer_RC.add_special_tokens({"additional_special_tokens": ADDITIONAL_SPECIAL_TOKENS})
-    bert_RC.resize_token_embeddings(len(tokenizer_RC))
+    tokenizer.add_special_tokens({"additional_special_tokens": ADDITIONAL_SPECIAL_TOKENS})
+    bert.resize_token_embeddings(len(tokenizer))
 
-    bert_RC = MyBertEncoder(bert_RC, tokenizer_RC, args, device)
+    my_bert_encoder = MyBertEncoder(bert, tokenizer, args, device)
 
-    my_model = MyModel(bert_RC, args, device)
+    my_model = MyModel(my_bert_encoder, args, device)
 
-    my_relation_classifier = MyRelationClassifier(args, tokenizer_RC, device)
+    my_relation_classifier = MyRelationClassifier(args, tokenizer, device)
     classifiers_dic = dict(zip(["relation"], [my_relation_classifier]))
-
-    train_set_list = []
-    valid_set_list = []
-    test_set_list = []
 
     corpus_name = list(corpus_file_dic.keys())[0]
     entity_type_num_list, relation_num_list, file_train_valid_test_list = corpus_file_dic[corpus_name]
@@ -499,21 +492,17 @@ def get_valid_performance(model_path):
 
     NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Span_fields_dic, \
         TAGS_Entity_Type_fields_dic, TAGS_Entity_Span_And_Type_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic \
-        = prepared_NER_data(tokenizer_RC, file_train_valid_test_list, entity_type_num_list)
+        = prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_list)
 
-    train_set_list.append(NER_train_set)
-    valid_set_list.append(NER_valid_set)
-    test_set_list.append(NER_test_set)
+    RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
+        = prepared_RC_data(tokenizer, file_train_valid_test_list, relation_num_list)
+    
+    train_set_list = [NER_train_set, RC_train_set]
+    valid_set_list = [NER_valid_set, RC_valid_set]
+    test_set_list = [NER_test_set, RC_test_set]
 
-    if "relation" in args.Task_list:
-        RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
-            = prepared_RC_data(tokenizer_RC, file_train_valid_test_list, relation_num_list)
-        my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
-                                                  TAGS_Entity_Type_fields_dic)
-
-        train_set_list.append(RC_train_set)
-        valid_set_list.append(RC_valid_set)
-        test_set_list.append(RC_test_set)
+    my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
+                                              TAGS_Entity_Type_fields_dic)
 
     my_model.add_classifiers(classifiers_dic)
 
@@ -532,8 +521,8 @@ if __name__ == "__main__":
     print("Bert:", args.BERT_MODEL)
     print("Batch size: ", args.BATCH_SIZE)
     print("Memory size: ", args.MEMORY_SIZE)
-    print("LR_max_bert: ", args.LR_max_bert)
-    print("LR_max_relation: ", args.LR_max_relation)
+    print("LR_bert: ", args.LR_bert)
+    print("LR_classifier: ", args.LR_classifier)
     print("All_data:", args.All_data)
     print("Corpus_list:", args.Corpus_list)
     print("Task_list:", args.Task_list)

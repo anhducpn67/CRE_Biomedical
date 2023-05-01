@@ -200,7 +200,7 @@ class Train_valid_test:
             weight_decay=args.L2)
         if "relation" in args.Task_list:
             self.optimizer_bert_RC = OPTIMIZER(
-                params=filter(lambda p: p.requires_grad, self.my_model.bert_RC.parameters()), lr=args.LR_max_bert,
+                params=filter(lambda p: p.requires_grad, self.my_model.encoder.parameters()), lr=args.LR_max_bert,
                 weight_decay=args.L2)
 
         for task in self.my_model.task_list:

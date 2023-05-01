@@ -363,11 +363,11 @@ class MyRelationClassifier(nn.Module):
 
 
 class MyModel(nn.Module):
-    def __init__(self, bert_RC, args, device):
+    def __init__(self, encoder, args, device):
         super(MyModel, self).__init__()
         self.to(device)
         self.device = device
-        self.bert_RC = bert_RC
+        self.encoder = encoder
         self.task_list = args.Task_list
         self.args = args
         self.classifiers_dic = {}
@@ -457,7 +457,7 @@ class MyModel(nn.Module):
         """ Relation extraction """
 
         batch_added_marker_entity_vec, batch_entity_pair_span_list, batch_sent_len_list = \
-            self.my_relation_classifier.get_entity_pair_vec(batch_entity, batch.tokens, batch_entity_type, self.bert_RC)
+            self.my_relation_classifier.get_entity_pair_vec(batch_entity, batch.tokens, batch_entity_type, self.encoder)
 
         batch_pred_raw_res_list, batch_pred_for_loss_sub_task_list = self.my_relation_classifier(
             batch_added_marker_entity_vec)
