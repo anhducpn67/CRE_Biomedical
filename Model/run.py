@@ -19,7 +19,7 @@ import torch.optim as optim
 from utils import print_execute_time, Logger, record_detail_performance
 from metric import report_performance
 from my_modules import MyRelationClassifier, MyEncoder, MyModel
-from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
+from data_loader import prepared_data, get_corpus_file_dic, make_model_data
 
 parser = argparse.ArgumentParser(description="Bert Model")
 parser.add_argument('--ID', default=0, type=int, help="Model's ID")
@@ -100,7 +100,7 @@ def select_data(all_embedding_representations):
 
 class TrainValidTest:
     def __init__(self, data_ID_2_corpus_dic, my_model,
-                 train_set_list, valid_set_list, test_set_list,
+                 train_dataset, valid_dataset, test_dataset,
                  sep_corpus_file_dic):
 
         self.my_model = my_model.to(device)
@@ -108,17 +108,17 @@ class TrainValidTest:
 
         self.data_ID_2_corpus_dic = data_ID_2_corpus_dic
 
-        self.train_set_list = train_set_list
-        self.valid_set_list = valid_set_list
-        self.test_set_list = test_set_list
+        self.train_dataset = train_dataset
+        self.valid_dataset = valid_dataset
+        self.test_dataset = test_dataset
 
-        self.train_corpus_to_examples_dic = self.get_dic_data(train_set_list)
-        self.valid_corpus_to_examples_dic = self.get_dic_data(valid_set_list)
-        self.test_corpus_to_examples_dic = self.get_dic_data(test_set_list)
+        self.train_corpus_to_examples_dic = self.get_dic_data(train_dataset)
+        self.valid_corpus_to_examples_dic = self.get_dic_data(valid_dataset)
+        self.test_corpus_to_examples_dic = self.get_dic_data(test_dataset)
 
-        self.train_iterator_dic = None
-        self.valid_iterator_dic = None
-        self.test_iterator_dic = None
+        self.train_iterator = None
+        self.valid_iterator = None
+        self.test_iterator = None
 
         self.sep_corpus_file_dic = sep_corpus_file_dic
 
@@ -134,27 +134,12 @@ class TrainValidTest:
             lr=args.LR_classifier, weight_decay=args.L2)
 
     def get_dic_data(self, set_list):
-        NER_data_dic = {}
-        RC_data_dic = {}
         return_data_dict = {}
 
-        corpus_list = copy.deepcopy(args.Corpus_list)
-
-        NER_total_list = [example for example in set_list[0]]
-        RC_total_list = [example for example in set_list[1]]
-
-        for example in NER_total_list:
+        for example in set_list:
             corpus_name = self.data_ID_2_corpus_dic[str(int(example.ID))[:5]]
-            NER_data_dic.setdefault(corpus_name, [])
-            NER_data_dic[corpus_name].append(example)
-
-        for example in RC_total_list:
-            corpus_name = self.data_ID_2_corpus_dic[str(int(example.ID))[:5]]
-            RC_data_dic.setdefault(corpus_name, [])
-            RC_data_dic[corpus_name].append(example)
-
-        for corpus_name in corpus_list:
-            return_data_dict[corpus_name] = (NER_data_dic[corpus_name], RC_data_dic[corpus_name])
+            return_data_dict.setdefault(corpus_name, [])
+            return_data_dict[corpus_name].append(example)
 
         return return_data_dict
 
@@ -163,27 +148,25 @@ class TrainValidTest:
         self.model_state_dic['my_model'] = self.my_model.state_dict()
         torch.save(self.model_state_dic, file_model_save)
 
-    def one_epoch(self, corpus_name_list, iterator_dic, valid_test_flag):
+    def one_epoch(self, corpus_name_list, batch_iterator, valid_test_flag):
         dic_batches_res = {"ID_list": [], "corpus_name_list": [], "relation": []}
         epoch_loss = 0
         count = 0
 
-        temp_my_iterator_list = [[ner, rc] for ner, rc in zip(iterator_dic[0], iterator_dic[1])]
-
         if valid_test_flag == "train":
             total_examples = 0
-            for batch_list in temp_my_iterator_list:
-                total_examples += len(batch_list[0])
+            for batch in batch_iterator:
+                total_examples += len(batch)
             print(f"Corpus {corpus_name_list}, Total examples {total_examples}")
 
-        for batch_list in temp_my_iterator_list:
+        for batch in batch_iterator:
             count += 1
 
             # D_replay
             if valid_test_flag == "train" and corpus_name_list[0] != args.Corpus_list[0]:
-                replay_batch_list = self.get_batch_memory()
+                replay_batch = self.get_batch_memory()
                 with torch.cuda.amp.autocast():
-                    dic_loss_one_batch, _ = self.my_model.forward(replay_batch_list)
+                    dic_loss_one_batch, _ = self.my_model.forward(replay_batch)
 
                 batch_relation_loss = dic_loss_one_batch["relation"]
                 batch_loss = 0.3 * batch_relation_loss
@@ -198,7 +181,7 @@ class TrainValidTest:
 
             # D_train
             with torch.cuda.amp.autocast():
-                dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list)
+                dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch)
 
             batch_relation_loss = dic_loss_one_batch["relation"]
             epoch_loss += batch_relation_loss
@@ -214,7 +197,7 @@ class TrainValidTest:
                 self.optimizer_classifier.step()
                 self.optimizer_classifier.zero_grad()
 
-            dic_batches_res["ID_list"].append(batch_list[0].ID)
+            dic_batches_res["ID_list"].append(batch.ID)
             dic_batches_res["corpus_name_list"].append(corpus_name_list)
             dic_batches_res["relation"].append(dic_res_one_batch["relation"])
 
@@ -224,61 +207,42 @@ class TrainValidTest:
 
     def one_epoch_train(self, corpus_name_list):
         self.my_model.train()
-        dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.train_iterator_dic, "train")
+        dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.train_iterator, "train")
         return dic_loss, dic_batches_res
 
     def one_epoch_valid(self, corpus_name_list):
         with torch.no_grad():
             self.my_model.eval()
-            dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.valid_iterator_dic, "valid")
+            dic_loss, dic_batches_res = self.one_epoch(corpus_name_list, self.valid_iterator, "valid")
         return dic_loss, dic_batches_res
 
     def set_iterator_for_specific_corpus(self, corpus_name_list):
-        NER_train, RC_train = self.train_set_list
-        NER_valid, RC_valid = self.valid_set_list
-        NER_test, RC_test = self.test_set_list
-        NER_train.examples = []
-        RC_train.examples = []
-        NER_valid.examples = []
-        RC_valid.examples = []
-        NER_test.examples = []
-        RC_test.examples = []
+        self.train_dataset.examples = []
+        self.valid_dataset.examples = []
+        self.test_dataset.examples = []
 
         for corpus_name in corpus_name_list:
-            NER_train_corpus, RC_train_corpus = self.train_corpus_to_examples_dic[corpus_name]
-            NER_valid_corpus, RC_valid_corpus = self.valid_corpus_to_examples_dic[corpus_name]
-            NER_test_corpus, RC_test_corpus = self.test_corpus_to_examples_dic[corpus_name]
-            NER_train.examples += NER_train_corpus
-            RC_train.examples += RC_train_corpus
-            NER_valid.examples += NER_valid_corpus
-            RC_valid.examples += RC_valid_corpus
-            NER_test.examples += NER_test_corpus
-            RC_test.examples += RC_test_corpus
+            self.train_dataset.examples += self.train_corpus_to_examples_dic[corpus_name]
+            self.valid_dataset.examples += self.valid_corpus_to_examples_dic[corpus_name]
+            self.test_dataset.examples += self.test_corpus_to_examples_dic[corpus_name]
 
-        NER_train_iterator, NER_valid_iterator, NER_test_iterator = torchtext.legacy.data.BucketIterator.splits(
-            [NER_train, NER_valid, NER_test], batch_size=args.BATCH_SIZE, sort=False, shuffle=True,
+        train_iterator, valid_iterator, test_iterator = torchtext.legacy.data.BucketIterator.splits(
+            [self.train_dataset, self.valid_dataset, self.test_dataset], batch_size=args.BATCH_SIZE, sort=False, shuffle=True,
             repeat=False, device=device)
-        RC_train_iterator, RC_valid_iterator, RC_test_iterator = torchtext.legacy.data.BucketIterator.splits(
-            [RC_train, RC_valid, RC_test], batch_size=args.BATCH_SIZE, sort=False, shuffle=True,
-            repeat=False, device=device)
-        self.train_iterator_dic = [NER_train_iterator, RC_train_iterator]
-        self.valid_iterator_dic = [NER_valid_iterator, RC_valid_iterator]
-        self.test_iterator_dic = [NER_test_iterator, RC_test_iterator]
+        self.train_iterator = train_iterator
+        self.valid_iterator = valid_iterator
+        self.test_iterator = test_iterator
 
     def get_batch_memory(self):
         batch_ids = random.sample(self.total_memorized_samples, k=args.BATCH_SIZE)
-        NER_examples = []
-        RC_examples = []
+        batch_examples = []
         for corpus_name, _ in self.memorized_samples.items():
-            for NER_example, RC_example in zip(self.train_corpus_to_examples_dic[corpus_name][0],
-                                               self.train_corpus_to_examples_dic[corpus_name][1]):
-                if int(NER_example.ID) in batch_ids:
-                    NER_examples.append(NER_example)
-                    RC_examples.append(RC_example)
+            for example in self.train_corpus_to_examples_dic[corpus_name]:
+                if int(example.ID) in batch_ids:
+                    batch_examples.append(example)
 
-        batch_NER = Batch(data=NER_examples, dataset=self.train_set_list[0], device=device)
-        batch_RE = Batch(data=RC_examples, dataset=self.train_set_list[1], device=device)
-        return batch_NER, batch_RE
+        batch = Batch(data=batch_examples, dataset=self.train_dataset, device=device)
+        return batch
 
     @print_execute_time
     def train_valid_fn(self):
@@ -345,20 +309,17 @@ class TrainValidTest:
             # shutil.copy(file_model_save, file_model_save + "_" + corpus_name)
             print(f"==================== Create memorized samples for {corpus_name} ====================")
             self.set_iterator_for_specific_corpus([corpus_name])
-            temp_my_iterator_list = [[ner, rc] for ner, rc in
-                                     zip(self.train_iterator_dic[0], self.train_iterator_dic[1])]
             all_embedding_representations = []
-            for batch_NER, batch_RC in temp_my_iterator_list:
+            for batch in self.train_iterator:
                 # Step 1
-                batch_entity_type_gold = self.my_model.entity_type_extraction(batch_NER)
-                batch_entity, batch_entity_type = self.my_model.get_relation_data(batch_RC, batch_entity_type_gold)
+                batch_entity, batch_entity_type = self.my_model.get_relation_data(batch)
 
                 # Step 2
                 batch_RE_gold_res_list = []
-                for sent_index in range(len(batch_RC)):
+                for sent_index in range(len(batch)):
                     gold_one_sent_all_sub_task_res_dic = []
                     for sub_task in self.my_model.classifier.my_relation_sub_task_list:
-                        for entity_pair in getattr(batch_RC, sub_task)[sent_index]:
+                        for entity_pair in getattr(batch, sub_task)[sent_index]:
                             entity_pair_span = \
                                 self.my_model.classifier.TAGS_Types_fields_dic[sub_task][1].vocab.itos[
                                     entity_pair]
@@ -373,12 +334,12 @@ class TrainValidTest:
                 with torch.no_grad():
                     batch_added_marker_entity_span_vec, batch_entity_pair_span_list, batch_sent_len_list = \
                         self.my_model.encoder.memory_get_entity_pair_rep(batch_entity=batch_entity,
-                                                                         batch_tokens=batch_RC.tokens,
+                                                                         batch_tokens=batch.tokens,
                                                                          batch_entity_type=batch_entity_type,
                                                                          batch_gold_RE=batch_RE_gold_res_list)
                 # Step 4
-                for sent_index in range(len(batch_RC)):
-                    ID_example = int(batch_RC.ID[sent_index])
+                for sent_index in range(len(batch)):
+                    ID_example = int(batch.ID[sent_index])
                     for e_index in range(0, batch_sent_len_list[sent_index]):
                         embed = batch_added_marker_entity_span_vec[sent_index][e_index]
                         all_embedding_representations.append((embed, ID_example))
@@ -416,22 +377,19 @@ class TrainValidTest:
                 epoch_loss = 0
                 count = 0
 
-                temp_my_iterator_list = [[ner, rc] for ner, rc in
-                                         zip(self.test_iterator_dic[0], self.test_iterator_dic[1])]
-
-                for batch_list in temp_my_iterator_list:
+                for batch in self.test_iterator:
                     count += 1
                     with torch.cuda.amp.autocast():
-                        dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch_list)
+                        dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch)
 
                     batch_relation_loss = dic_loss_one_batch["relation"]
                     epoch_loss += batch_relation_loss
 
-                    dic_batches_res["ID_list"].append(batch_list[0].ID)
-                    dic_batches_res["tokens_list"].append(batch_list[0].tokens)
+                    dic_batches_res["ID_list"].append(batch.ID)
+                    dic_batches_res["tokens_list"].append(batch.tokens)
                     dic_batches_res["relation"].append(dic_res_one_batch["relation"])
 
-                dic_loss = {"average": epoch_loss / count, "relation": epoch_loss / count}
+                dic_loss = {"average": epoch_loss / count, "relation": epoch_loss}
 
             dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
                 = report_performance(corpus_name, 0, dic_loss, dic_batches_res,
@@ -460,7 +418,6 @@ def get_valid_performance(model_path):
     bert = transformers.BertModel.from_pretrained(model_path, is_decoder=False, add_cross_attention=False)
     tokenizer = transformers.BertTokenizer.from_pretrained(model_path)
 
-    entity_type_list = ["Drug", "Gene", "Disease"]
     ADDITIONAL_SPECIAL_TOKENS_start = ["[Entity_only_entity_type_" + i + "]" for i in entity_type_list]
     ADDITIONAL_SPECIAL_TOKENS_end = ["[/Entity_only_entity_type_" + i + "]" for i in entity_type_list]
     ADDITIONAL_SPECIAL_TOKENS = ADDITIONAL_SPECIAL_TOKENS_start + ADDITIONAL_SPECIAL_TOKENS_end
@@ -474,22 +431,15 @@ def get_valid_performance(model_path):
 
     my_model = MyModel(my_bert_encoder, my_relation_classifier, args, device)
 
-    NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Type_fields_dic \
-        = prepared_NER_data(tokenizer, combining_data_files_list, entity_type_list)
+    train_dataset, valid_dataset, test_dataset, TAGS_Entity_Type_fields_dic, TAGS_Relation_fields_dic, TAGS_sep_entity_fields_dic \
+        = prepared_data(tokenizer, combining_data_files_list, entity_type_list, relation_list)
 
-    RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sep_entity_fields_dic \
-        = prepared_RC_data(tokenizer, combining_data_files_list, relation_list)
-    
-    train_set_list = [NER_train_set, RC_train_set]
-    valid_set_list = [NER_valid_set, RC_valid_set]
-    test_set_list = [NER_test_set, RC_test_set]
-
-    my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic,
+    my_relation_classifier.create_classifiers(TAGS_Relation_fields_dic,
                                               TAGS_sep_entity_fields_dic,
                                               TAGS_Entity_Type_fields_dic)
 
     my_train_valid_test = TrainValidTest(data_ID_2_corpus_dic, my_model,
-                                         train_set_list, valid_set_list, test_set_list,
+                                         train_dataset, valid_dataset, test_dataset,
                                          sep_corpus_file_dic)
     Average_Time_list = []
     for i in range(args.Average_Time):

@@ -369,19 +369,20 @@ class MyModel(nn.Module):
         self.encoder = encoder
         self.classifier = classifier
 
-    def get_relation_data(self, batch, batch_entity_type_gold):
+    def get_relation_data(self, batch):
         batch_entity = []
         batch_entity_type = []
 
-        batch_pred_entity_res = batch.sep_entity
+        batch_entity_type_gold = self.entity_type_extraction(batch)
         TAGS_field = self.classifier.TAGS_sep_entity_fields_dic["sep_entity"][1]
 
-        for sent_index, one_sent_entity in enumerate(batch_pred_entity_res):
+        for sent_index, one_sent_entity in enumerate(batch.sep_entity):
             one_sent_temp_list = one_sent_entity[:get_sent_len(one_sent_entity, TAGS_field)]  # deal with PAD
             one_sent_temp_list = [eval(TAGS_field.vocab.itos[int(i)]) for i in one_sent_temp_list.cpu().numpy().tolist()]
             batch_entity.append(sorted(one_sent_temp_list, key=lambda s: s[0]))
 
             type_dic = batch_entity_type_gold[sent_index]
+
             batch_entity_type.append(self.provide_dic_entity_type(one_sent_temp_list, type_dic))
 
         assert len(batch_entity) == len(batch_entity_type)
@@ -401,15 +402,12 @@ class MyModel(nn.Module):
         assert len(entity_type_list) == len(entity_list)
         return entity_type_list
 
-    def forward(self, batch_list):
+    def forward(self, batch):
         dic_res_one_batch = {}
         dic_loss_one_batch = {}
 
-        batch_NER, batch_RC = batch_list
-
-        batch_entity_type_gold = self.entity_type_extraction(batch_NER)
-        batch_entity, batch_entity_type = self.get_relation_data(batch_RC, batch_entity_type_gold)
-        one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch_RC, batch_entity, batch_entity_type)
+        batch_entity, batch_entity_type = self.get_relation_data(batch)
+        one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch, batch_entity, batch_entity_type)
         dic_res_one_batch["relation"] = one_batch_relation_res
         dic_loss_one_batch["relation"] = one_batch_relation_loss
 

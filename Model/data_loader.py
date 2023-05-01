@@ -158,63 +158,38 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
                     multi_task_file.write('\n')
 
 
-def prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_list):
-    ID_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
-    TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
-                                                unk_token=tokenizer.unk_token_id)
-
-    TAGS_only_Entity_Type_fields_dic = {}
-    for entity in entity_type_num_list:
-        TAGS_only_Entity_Type_fields_dic["only_entity_type_" + entity] = ("only_entity_type_" + entity,
-                                                                          torchtext.legacy.data.Field(dtype=torch.long,
-                                                                                                      batch_first=True,
-                                                                                                      pad_token=tokenizer.pad_token,
-                                                                                                      unk_token=None))
-
-    fields = {
-        'ID': ('ID', ID_fields),
-        'tokens': ('tokens', TOKENS_fields)
-    }
-    fields.update(TAGS_only_Entity_Type_fields_dic)
-
-    train_file = file_train_valid_test_list[0]
-    valid_file = file_train_valid_test_list[1]
-    test_file = file_train_valid_test_list[2]
-    train_set, valid_set, test_set = torchtext.legacy.data.TabularDataset.splits(path="", train=train_file,
-                                                                                 validation=valid_file,
-                                                                                 test=test_file, format="json",
-                                                                                 fields=fields)
-
-    for entity, field in TAGS_only_Entity_Type_fields_dic.items():
-        field[1].build_vocab(train_set, valid_set, test_set)
-
-    return train_set, valid_set, test_set, TOKENS_fields, TAGS_only_Entity_Type_fields_dic
-
-
-def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
+def prepared_data(tokenizer, file_train_valid_test_list, entity_type_list, relation_list):
     ID_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, sequential=False)
     TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
                                                 unk_token=tokenizer.unk_token_id)
 
     TAGS_sep_entity_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
                                                          pad_token=tokenizer.pad_token)
-    TAGS_sep_entity_fields_dic = {
-        "sep_entity": ("sep_entity", TAGS_sep_entity_fields)}
+    TAGS_sep_entity_fields_dic = {"sep_entity": ("sep_entity", TAGS_sep_entity_fields)}
 
-    TAGS_Relation_pair_fields_dic = {}
+    TAGS_Entity_Type_fields_dic = {}
+    for entity in entity_type_list:
+        TAGS_Entity_Type_fields_dic["only_entity_type_" + entity] = ("only_entity_type_" + entity,
+                                                                     torchtext.legacy.data.Field(dtype=torch.long,
+                                                                                                 batch_first=True,
+                                                                                                 pad_token=tokenizer.pad_token,
+                                                                                                 unk_token=None))
+
+    TAGS_Relation_fields_dic = {}
     for relation in relation_list:
-        TAGS_Relation_pair_fields_dic["relation_" + relation] = ("relation_" + relation,
-                                                                 torchtext.legacy.data.Field(dtype=torch.long,
-                                                                                             batch_first=True,
-                                                                                             pad_token=tokenizer.pad_token,
-                                                                                             unk_token=None))
+        TAGS_Relation_fields_dic["relation_" + relation] = ("relation_" + relation,
+                                                            torchtext.legacy.data.Field(dtype=torch.long,
+                                                                                        batch_first=True,
+                                                                                        pad_token=tokenizer.pad_token,
+                                                                                        unk_token=None))
 
     fields = {
         'ID': ('ID', ID_fields),
         'tokens': ('tokens', TOKENS_fields),
         'sep_entity': ('sep_entity', TAGS_sep_entity_fields)
     }
-    fields.update(TAGS_Relation_pair_fields_dic)
+    fields.update(TAGS_Entity_Type_fields_dic)
+    fields.update(TAGS_Relation_fields_dic)
 
     train_file = file_train_valid_test_list[0]
     valid_file = file_train_valid_test_list[1]
@@ -225,8 +200,10 @@ def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
                                                                                  fields=fields)
 
     TAGS_sep_entity_fields.build_vocab(train_set, valid_set, test_set)
+    for entity, field in TAGS_Entity_Type_fields_dic.items():
+        field[1].build_vocab(train_set, valid_set, test_set)
+    for relation, field in TAGS_Relation_fields_dic.items():
+        field[1].build_vocab(train_set, valid_set, test_set)
 
-    for relation, filed in TAGS_Relation_pair_fields_dic.items():
-        filed[1].build_vocab(train_set, valid_set, test_set)
-
-    return train_set, valid_set, test_set, TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sep_entity_fields_dic
+    return train_set, valid_set, test_set, \
+        TAGS_Entity_Type_fields_dic, TAGS_Relation_fields_dic, TAGS_sep_entity_fields_dic
