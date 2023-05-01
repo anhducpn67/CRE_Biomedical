@@ -479,18 +479,18 @@ def get_valid_performance(model_path):
     entity_type_num_list, relation_num_list, file_train_valid_test_list = corpus_file_dic[corpus_name]
     print("===============" + corpus_name + "===============")
 
-    NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Span_fields_dic, \
-        TAGS_Entity_Type_fields_dic, TAGS_Entity_Span_And_Type_fields_dic, TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic \
+    NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Type_fields_dic \
         = prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_list)
 
-    RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic \
+    RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sep_entity_fields_dic \
         = prepared_RC_data(tokenizer, file_train_valid_test_list, relation_num_list)
     
     train_set_list = [NER_train_set, RC_train_set]
     valid_set_list = [NER_valid_set, RC_valid_set]
     test_set_list = [NER_test_set, RC_test_set]
 
-    my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
+    my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic,
+                                              TAGS_sep_entity_fields_dic,
                                               TAGS_Entity_Type_fields_dic)
 
     my_train_valid_test = TrainValidTest(data_ID_2_corpus_dic, my_model,

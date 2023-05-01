@@ -17,7 +17,7 @@ def statistics_corpus(train_file, relation_list):
     total_entity_yes_no_pair_num = 0
     for i in train_data:
         data_dic = eval(i)
-        # entity_combine_len = len(list(combinations(data_dic["sampled_entity_span"], 2)))
+        # entity_combine_len = len(list(combinations(data_dic["sep_entity"], 2)))
         entity_combine_len = len(list(combinations(data_dic["sep_entity"], 2)))
         total_entity_yes_no_pair_num += entity_combine_len
         for k, v in data_dic.items():
@@ -173,19 +173,6 @@ def prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_lis
     TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
                                                 unk_token=tokenizer.unk_token_id)
 
-    TAGS_entity_span_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True,
-                                                          pad_token=tokenizer.pad_token, unk_token=None)
-    TAGS_entity_span_fields_dic = {"entity_span": ("entity_span", TAGS_entity_span_fields)}
-
-    TAGS_sep_entity_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
-                                                         pad_token=tokenizer.pad_token)
-    TAGS_sep_entity_fields_dic = {"sep_entity": ("sep_entity", TAGS_sep_entity_fields)}
-
-    TAGS_sampled_entity_span_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
-                                                                  pad_token=tokenizer.pad_token)
-    TAGS_sampled_entity_span_fields_dic = {
-        "sampled_entity_span": ("sampled_entity_span", TAGS_sampled_entity_span_fields)}
-
     TAGS_only_Entity_Type_fields_dic = {}
     for entity in entity_type_num_list:
         TAGS_only_Entity_Type_fields_dic["only_entity_type_" + entity] = ("only_entity_type_" + entity,
@@ -194,23 +181,11 @@ def prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_lis
                                                                                                       pad_token=tokenizer.pad_token,
                                                                                                       unk_token=None))
 
-    TAGS_joint_Entity_Type_fields_dic = {}
-    for entity in entity_type_num_list:
-        TAGS_joint_Entity_Type_fields_dic["joint_entity_type_" + entity] = ("joint_entity_type_" + entity,
-                                                                            torchtext.legacy.data.Field(
-                                                                                dtype=torch.long, batch_first=True,
-                                                                                pad_token=tokenizer.pad_token,
-                                                                                unk_token=None))
-
     fields = {
         'ID': ('ID', ID_fields),
-        'tokens': ('tokens', TOKENS_fields),
-        'entity_span': ('entity_span', TAGS_entity_span_fields),
-        'sep_entity': ('sep_entity', TAGS_sep_entity_fields),
-        'sampled_entity_span': ('sampled_entity_span', TAGS_sampled_entity_span_fields)
+        'tokens': ('tokens', TOKENS_fields)
     }
     fields.update(TAGS_only_Entity_Type_fields_dic)
-    fields.update(TAGS_joint_Entity_Type_fields_dic)
 
     train_file = file_train_valid_test_list[0]
     valid_file = file_train_valid_test_list[1]
@@ -220,19 +195,10 @@ def prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_lis
                                                                                  test=test_file, format="json",
                                                                                  fields=fields)
 
-    TAGS_entity_span_fields.build_vocab(train_set, valid_set, test_set)
-    TAGS_sep_entity_fields.build_vocab(train_set, valid_set, test_set)
-    TAGS_sampled_entity_span_fields.build_vocab(train_set, valid_set, test_set)
-
     for entity, field in TAGS_only_Entity_Type_fields_dic.items():
         field[1].build_vocab(train_set, valid_set, test_set)
 
-    for entity, field in TAGS_joint_Entity_Type_fields_dic.items():
-        field[1].build_vocab(train_set, valid_set, test_set, specials=["S", "B", "I", "E"])
-
-    return train_set, valid_set, test_set, TOKENS_fields, \
-        TAGS_entity_span_fields_dic, TAGS_only_Entity_Type_fields_dic, TAGS_joint_Entity_Type_fields_dic, \
-        TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic
+    return train_set, valid_set, test_set, TOKENS_fields, TAGS_only_Entity_Type_fields_dic
 
 
 def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
@@ -240,10 +206,10 @@ def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
     TOKENS_fields = torchtext.legacy.data.Field(batch_first=True, use_vocab=False, pad_token=tokenizer.pad_token_id,
                                                 unk_token=tokenizer.unk_token_id)
 
-    TAGS_sampled_entity_span_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
-                                                                  pad_token=tokenizer.pad_token)
-    TAGS_sampled_entity_span_fields_dic = {
-        "sampled_entity_span": ("sampled_entity_span", TAGS_sampled_entity_span_fields)}
+    TAGS_sep_entity_fields = torchtext.legacy.data.Field(dtype=torch.long, batch_first=True, unk_token=None,
+                                                         pad_token=tokenizer.pad_token)
+    TAGS_sep_entity_fields_dic = {
+        "sep_entity": ("sep_entity", TAGS_sep_entity_fields)}
 
     TAGS_Relation_pair_fields_dic = {}
     for relation in relation_list:
@@ -256,7 +222,7 @@ def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
     fields = {
         'ID': ('ID', ID_fields),
         'tokens': ('tokens', TOKENS_fields),
-        'sampled_entity_span': ('sampled_entity_span', TAGS_sampled_entity_span_fields)
+        'sep_entity': ('sep_entity', TAGS_sep_entity_fields)
     }
     fields.update(TAGS_Relation_pair_fields_dic)
 
@@ -268,9 +234,9 @@ def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
                                                                                  test=test_file, format="json",
                                                                                  fields=fields)
 
-    TAGS_sampled_entity_span_fields.build_vocab(train_set, valid_set, test_set)
+    TAGS_sep_entity_fields.build_vocab(train_set, valid_set, test_set)
 
     for relation, filed in TAGS_Relation_pair_fields_dic.items():
         filed[1].build_vocab(train_set, valid_set, test_set)
 
-    return train_set, valid_set, test_set, TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic
+    return train_set, valid_set, test_set, TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sep_entity_fields_dic

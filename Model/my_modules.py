@@ -271,11 +271,11 @@ class MyRelationClassifier(nn.Module):
         return getattr(self, 'my_classifier_{0}'.format(i))
 
     def create_classifiers(self, TAGS_Types_fields_dic,
-                           TAGS_sampled_entity_span_fields_dic,
+                           TAGS_sep_entity_fields_dic,
                            TAGS_Entity_Type_fields_dic):
         self.TAGS_Types_fields_dic = TAGS_Types_fields_dic
         self.TAGS_Entity_Type_fields_dic = TAGS_Entity_Type_fields_dic
-        self.TAGS_sampled_entity_span_fields_dic = TAGS_sampled_entity_span_fields_dic
+        self.TAGS_sep_entity_fields_dic = TAGS_sep_entity_fields_dic
         self.my_relation_sub_task_list = list(self.TAGS_Types_fields_dic.keys())
         self.my_entity_type_sub_task_list = list(self.TAGS_Entity_Type_fields_dic.keys())
 
@@ -373,8 +373,8 @@ class MyModel(nn.Module):
         batch_entity = []
         batch_entity_type = []
 
-        batch_pred_entity_res = batch.sampled_entity_span
-        TAGS_field = self.classifier.TAGS_sampled_entity_span_fields_dic["sampled_entity_span"][1]
+        batch_pred_entity_res = batch.sep_entity
+        TAGS_field = self.classifier.TAGS_sep_entity_fields_dic["sep_entity"][1]
 
         for sent_index, one_sent_entity in enumerate(batch_pred_entity_res):
             one_sent_temp_list = one_sent_entity[:get_sent_len(one_sent_entity, TAGS_field)]  # deal with PAD
