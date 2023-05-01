@@ -18,7 +18,7 @@ import torch.optim as optim
 
 from utils import print_execute_time, Logger, record_detail_performance
 from metric import report_performance
-from my_modules import MyRelationClassifier, MyBertEncoder, MyModel
+from my_modules import MyRelationClassifier, MyEncoder, MyModel
 from data_loader import prepared_NER_data, prepared_RC_data, get_corpus_file_dic, make_model_data
 
 parser = argparse.ArgumentParser(description="Bert Model")
@@ -78,7 +78,6 @@ elif args.BERT_MODEL == "base":
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
 device = torch.device("cpu")
-OPTIMIZER = optim.AdamW
 SEED = 1234
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
@@ -127,12 +126,12 @@ class TrainValidTest:
         self.memorized_samples = {}
         self.total_memorized_samples = []
 
-        self.optimizer_bert_RC = OPTIMIZER(
+        self.optimizer_encoder = optim.AdamW(
             params=filter(lambda p: p.requires_grad, self.my_model.encoder.parameters()),
             lr=args.LR_bert, weight_decay=args.L2)
 
-        self.optimizer_classifier = OPTIMIZER(
-            params=filter(lambda p: p.requires_grad, self.my_model.my_relation_classifier.parameters()),
+        self.optimizer_classifier = optim.AdamW(
+            params=filter(lambda p: p.requires_grad, self.my_model.classifier.parameters()),
             lr=args.LR_classifier, weight_decay=args.L2)
 
     def get_dic_data(self, set_list):
@@ -192,8 +191,8 @@ class TrainValidTest:
 
                 batch_loss.backward()
 
-                self.optimizer_bert_RC.step()
-                self.optimizer_bert_RC.zero_grad()
+                self.optimizer_encoder.step()
+                self.optimizer_encoder.zero_grad()
 
                 self.optimizer_classifier.step()
                 self.optimizer_classifier.zero_grad()
@@ -210,8 +209,8 @@ class TrainValidTest:
 
                 batch_loss.backward()
 
-                self.optimizer_bert_RC.step()
-                self.optimizer_bert_RC.zero_grad()
+                self.optimizer_encoder.step()
+                self.optimizer_encoder.zero_grad()
 
                 self.optimizer_classifier.step()
                 self.optimizer_classifier.zero_grad()
@@ -288,7 +287,6 @@ class TrainValidTest:
         print("start training...")
         for idx_corpus, corpus_name in enumerate(corpus_list):
             print('*' * 50)
-            # ======================== Training for current corpus ========================
             print(f"==================== Training {corpus_name} ====================")
             maxF = 0
             save_epoch = 0
@@ -299,7 +297,7 @@ class TrainValidTest:
                 if epoch >= args.Min_train_performance_Report:
                     report_performance(corpus_name, epoch, dic_train_loss,
                                        dic_batches_train_res,
-                                       self.my_model.my_relation_classifier,
+                                       self.my_model.classifier,
                                        self.sep_corpus_file_dic,
                                        "train")
 
@@ -311,7 +309,7 @@ class TrainValidTest:
                         dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
                             = report_performance(corpus_name_valid, epoch, dic_valid_loss,
                                                  dic_batches_valid_res,
-                                                 self.my_model.my_relation_classifier,
+                                                 self.my_model.classifier,
                                                  self.sep_corpus_file_dic,
                                                  "valid")
 
@@ -326,7 +324,8 @@ class TrainValidTest:
                         record_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
                                                   file_detail_performance,
                                                   dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
-                                                  self.sep_corpus_file_dic, ["relation"], corpus_name, args.Average_Time)
+                                                  self.sep_corpus_file_dic, ["relation"], corpus_name,
+                                                  args.Average_Time)
                     else:
                         early_stop_num -= 1
 
@@ -345,7 +344,6 @@ class TrainValidTest:
             for task in ["relation"]:
                 print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
             # shutil.copy(file_model_save, file_model_save + "_" + corpus_name)
-            # ======================== Create memorized samples for current task ========================
             print(f"==================== Create memorized samples for {corpus_name} ====================")
             self.set_iterator_for_specific_corpus([corpus_name])
             temp_my_iterator_list = [[ner, rc] for ner, rc in
@@ -362,10 +360,10 @@ class TrainValidTest:
                 batch_RE_gold_res_list = []
                 for sent_index in range(len(batch_RC)):
                     gold_one_sent_all_sub_task_res_dic = []
-                    for sub_task in self.my_model.my_relation_classifier.my_relation_sub_task_list:
+                    for sub_task in self.my_model.classifier.my_relation_sub_task_list:
                         for entity_pair in getattr(batch_RC, sub_task)[sent_index]:
                             entity_pair_span = \
-                                self.my_model.my_relation_classifier.TAGS_Types_fields_dic[sub_task][1].vocab.itos[
+                                self.my_model.classifier.TAGS_Types_fields_dic[sub_task][1].vocab.itos[
                                     entity_pair]
                             if entity_pair_span != "[PAD]":
                                 temp_pair = sorted(eval(entity_pair_span))
@@ -377,11 +375,10 @@ class TrainValidTest:
                 # Step 3
                 with torch.no_grad():
                     batch_added_marker_entity_span_vec, batch_entity_pair_span_list, batch_sent_len_list = \
-                        self.my_model.my_relation_classifier.memory_get_entity_pair_vec(batch_entity=batch_entity,
-                                                                                        batch_tokens=batch_RC.tokens,
-                                                                                        batch_entity_type=batch_entity_type,
-                                                                                        batch_gold_RE=batch_RE_gold_res_list,
-                                                                                        bert_RC=self.my_model.encoder)
+                        self.my_model.encoder.memory_get_entity_pair_rep(batch_entity=batch_entity,
+                                                                         batch_tokens=batch_RC.tokens,
+                                                                         batch_entity_type=batch_entity_type,
+                                                                         batch_gold_RE=batch_RE_gold_res_list)
                 # Step 4
                 for sent_index in range(len(batch_RC)):
                     ID_example = int(batch_RC.ID[sent_index])
@@ -441,7 +438,7 @@ class TrainValidTest:
 
             dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
                 = report_performance(corpus_name, 0, dic_loss, dic_batches_res,
-                                     self.my_model.my_relation_classifier,
+                                     self.my_model.classifier,
                                      self.sep_corpus_file_dic,
                                      "train")
 
@@ -474,9 +471,9 @@ def get_valid_performance(model_path):
     tokenizer.add_special_tokens({"additional_special_tokens": ADDITIONAL_SPECIAL_TOKENS})
     bert.resize_token_embeddings(len(tokenizer))
 
-    my_bert_encoder = MyBertEncoder(bert, tokenizer, args, device)
+    my_bert_encoder = MyEncoder(bert, tokenizer, args, device)
 
-    my_relation_classifier = MyRelationClassifier(args, tokenizer, device)
+    my_relation_classifier = MyRelationClassifier(args, device)
 
     my_model = MyModel(my_bert_encoder, my_relation_classifier, args, device)
 
