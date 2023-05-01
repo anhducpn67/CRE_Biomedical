@@ -292,7 +292,7 @@ class TrainValidTest:
             save_epoch = 0
             early_stop_num = args.EARLY_STOP_NUM
             self.set_iterator_for_specific_corpus([corpus_name])
-            for epoch in range(0, args.EPOCH + 1):
+            for epoch in range(0, args.EPOCH):
                 dic_train_loss, dic_batches_train_res = self.one_epoch_train([corpus_name])
                 if epoch >= args.Min_train_performance_Report:
                     report_performance(corpus_name, epoch, dic_train_loss,
@@ -351,10 +351,8 @@ class TrainValidTest:
             all_embedding_representations = []
             for batch_NER, batch_RC in temp_my_iterator_list:
                 # Step 1
-                dic_res_one_batch = {}
-                batch_gold_and_pred_entity_type_res = self.my_model.entity_type_extraction(batch_NER)
-                dic_res_one_batch["entity_type"] = batch_gold_and_pred_entity_type_res
-                batch_entity, batch_entity_type = self.my_model.get_relation_data(batch_RC, dic_res_one_batch)
+                batch_entity_type_gold = self.my_model.entity_type_extraction(batch_NER)
+                batch_entity, batch_entity_type = self.my_model.get_relation_data(batch_RC, batch_entity_type_gold)
 
                 # Step 2
                 batch_RE_gold_res_list = []

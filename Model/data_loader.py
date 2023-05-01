@@ -230,9 +230,6 @@ def prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_lis
     for entity, field in TAGS_joint_Entity_Type_fields_dic.items():
         field[1].build_vocab(train_set, valid_set, test_set, specials=["S", "B", "I", "E"])
 
-    # train_iterator, valid_iterator, test_iterator = torchtext.legacy.data.BucketIterator.splits(
-    #     [train_set, valid_set, test_set], batch_size=BATCH_SIZE, sort=False, shuffle=True,
-    #     repeat=False, device=device)
     return train_set, valid_set, test_set, TOKENS_fields, \
         TAGS_entity_span_fields_dic, TAGS_only_Entity_Type_fields_dic, TAGS_joint_Entity_Type_fields_dic, \
         TAGS_sampled_entity_span_fields_dic, TAGS_sep_entity_fields_dic
@@ -275,9 +272,5 @@ def prepared_RC_data(tokenizer, file_train_valid_test_list, relation_list):
 
     for relation, filed in TAGS_Relation_pair_fields_dic.items():
         filed[1].build_vocab(train_set, valid_set, test_set)
-
-    # train_iterator, valid_iterator, test_iterator = torchtext.legacy.data.BucketIterator.splits(
-    #     [train_set, valid_set, test_set], batch_size=BATCH_SIZE, sort=False, shuffle=True,
-    #     repeat=False, device=device)
 
     return train_set, valid_set, test_set, TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic

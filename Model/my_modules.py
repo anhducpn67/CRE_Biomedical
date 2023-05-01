@@ -369,7 +369,7 @@ class MyModel(nn.Module):
         self.encoder = encoder
         self.classifier = classifier
 
-    def get_relation_data(self, batch, dic_res_one_batch):
+    def get_relation_data(self, batch, batch_entity_type_gold):
         batch_entity = []
         batch_entity_type = []
 
@@ -381,7 +381,7 @@ class MyModel(nn.Module):
             one_sent_temp_list = [eval(TAGS_field.vocab.itos[int(i)]) for i in one_sent_temp_list.cpu().numpy().tolist()]
             batch_entity.append(sorted(one_sent_temp_list, key=lambda s: s[0]))
 
-            type_dic = dic_res_one_batch['entity_type'][0][sent_index]
+            type_dic = batch_entity_type_gold[sent_index]
             batch_entity_type.append(self.provide_dic_entity_type(one_sent_temp_list, type_dic))
 
         assert len(batch_entity) == len(batch_entity_type)
@@ -405,43 +405,31 @@ class MyModel(nn.Module):
         dic_res_one_batch = {}
         dic_loss_one_batch = {}
 
-        batch_NER = batch_list[0]
+        batch_NER, batch_RC = batch_list
 
-        batch_gold_and_pred_entity_res = self.entity_span_extraction(batch_NER)
-        dic_res_one_batch["entity_span"] = batch_gold_and_pred_entity_res
-
-        batch_gold_and_pred_entity_type_res = self.entity_type_extraction(batch_NER)
-        dic_res_one_batch["entity_type"] = batch_gold_and_pred_entity_type_res
-
-        batch_RC = batch_list[1]
-
-        batch_entity, batch_entity_type = self.get_relation_data(batch_RC, dic_res_one_batch)
+        batch_entity_type_gold = self.entity_type_extraction(batch_NER)
+        batch_entity, batch_entity_type = self.get_relation_data(batch_RC, batch_entity_type_gold)
         one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch_RC, batch_entity, batch_entity_type)
         dic_res_one_batch["relation"] = one_batch_relation_res
         dic_loss_one_batch["relation"] = one_batch_relation_loss
 
         return dic_loss_one_batch, dic_res_one_batch
 
-    def entity_span_extraction(self, batch):
-        """ Entity span extraction (for only span, my_ensembled_relation_classifier = one classifier) """
-        return batch.entity_span.tolist(), None
-
     def entity_type_extraction(self, batch):
-        batch_gold_res_list = []
+        batch_entity_type_gold = []
         for sent_index in range(len(batch)):
             gold_one_sent_all_sub_task_res_dic = {}
             for sub_task in self.classifier.my_entity_type_sub_task_list:
                 gold_one_sent_all_sub_task_res_dic.setdefault(sub_task, [])
                 for entity in getattr(batch, sub_task)[sent_index]:
-                    entity_span = self.classifier.TAGS_Entity_Type_fields_dic[sub_task][1].vocab.itos[
-                        entity]
+                    entity_span = self.classifier.TAGS_Entity_Type_fields_dic[sub_task][1].vocab.itos[entity]
                     if str(entity_span) != '[PAD]':
                         temp_pair = sorted(eval(entity_span))
                         if temp_pair not in gold_one_sent_all_sub_task_res_dic[sub_task]:
                             gold_one_sent_all_sub_task_res_dic[sub_task].append(temp_pair)
-            batch_gold_res_list.append(gold_one_sent_all_sub_task_res_dic)
+            batch_entity_type_gold.append(gold_one_sent_all_sub_task_res_dic)
 
-        return batch_gold_res_list, None
+        return batch_entity_type_gold
 
     def relation_extraction(self, batch, batch_entity, batch_entity_type):
         """ Relation extraction """

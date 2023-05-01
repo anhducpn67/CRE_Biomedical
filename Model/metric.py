@@ -90,8 +90,8 @@ def get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_t
     return dic_corpus_task_micro_P_R_F
 
 
-def report_relation_PRF(list_batches_res, TAGS_Relation_fileds_dic, dic_sub_task_corpus, corpus_list):
-    sub_task_list = list(TAGS_Relation_fileds_dic.keys())
+def report_relation_PRF(list_batches_res, TAGS_Relation_fields_dic, dic_sub_task_corpus, corpus_list):
+    sub_task_list = list(TAGS_Relation_fields_dic.keys())
     accumulated_each_class_total_TP_FN_FP = {}
 
     for one_batch_gold_list, one_batch_pred_list in list_batches_res:
