@@ -67,9 +67,6 @@ def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large):
             if task == "entity_type":
                 v_list = raw_corpus_file_dic[corpus]['entity_type_list']
                 v_list = ["only_entity_type_" + i for i in v_list]
-            if task == "entity_span_and_type":
-                v_list = raw_corpus_file_dic[corpus]['entity_type_list']
-                v_list = ["joint_entity_type_" + i for i in v_list]
             if task == "relation":
                 v_list = raw_corpus_file_dic[corpus]['relation_list']
                 v_list = ["relation_" + i for i in v_list]
@@ -80,7 +77,6 @@ def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large):
     for corpus in corpus_list:
         pick_corpus_file_dic[corpus] = raw_corpus_file_dic[corpus]
 
-    return_corpus_file_dic = {}
     # new file address
     if all_data_flag:
         combining_data_files_list = [os.path.join('../data', 'Multi_Task_Training', base_large,
@@ -105,9 +101,7 @@ def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large):
     entity_type_list = list(set(entity_type_list))
     relation_list = list(set(relation_list))
 
-    return_corpus_file_dic[str(corpus_list)] = (entity_type_list, relation_list, combining_data_files_list)
-
-    return return_corpus_file_dic, sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list
+    return sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list
 
 
 def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
@@ -153,13 +147,9 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
 
                 for one_record in writen_data:
                     one_record = eval(one_record)
-                    sent_len = len(one_record["tokens"])
                     for entity_type in entity_type_list:
                         if "only_entity_type_" + entity_type not in one_record.keys():
                             one_record["only_entity_type_" + entity_type] = []
-                        if "joint_entity_type_" + entity_type not in one_record.keys():
-                            # need improvement, if we're padding in memory, it will be quicker
-                            one_record["joint_entity_type_" + entity_type] = ["O"] * sent_len
                     for relation in relation_list:
                         if "relation_" + relation not in one_record.keys():
                             one_record["relation_" + relation] = []

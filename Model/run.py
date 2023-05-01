@@ -42,11 +42,10 @@ parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "P
 parser.add_argument('--Test_flag', action='store_true', default=False)
 parser.add_argument('--Test_model_file', type=str, default="../result/save_model/???")
 
-parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
-                    help="\"standard\" or \"entity_type_marker\"")
+parser.add_argument('--Entity_Prep_Way', default="entity_type_marker", type=str, help="\"standard\" or \"entity_type_marker\"")
 
 parser.add_argument('--LR_bert', default=1e-5, type=float)
-parser.add_argument('--LR_classifier', default=1e-4, type=float)
+parser.add_argument('--LR_classifier', default=1e-5, type=float)
 parser.add_argument('--L2', default=1e-2, type=float)
 
 parser.add_argument('--Weight_Loss', action='store_true', default=True)
@@ -219,7 +218,7 @@ class TrainValidTest:
             dic_batches_res["corpus_name_list"].append(corpus_name_list)
             dic_batches_res["relation"].append(dic_res_one_batch["relation"])
 
-        dic_loss = {"relation": epoch_loss / count, "average": epoch_loss / count}
+        dic_loss = {"relation": epoch_loss, "average": epoch_loss / count}
 
         return dic_loss, dic_batches_res
 
@@ -450,7 +449,7 @@ class TrainValidTest:
 
 @print_execute_time
 def get_valid_performance(model_path):
-    corpus_file_dic, sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
+    sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
         = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.BERT_MODEL)
 
     make_model_data(args.BERT_MODEL, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
@@ -475,15 +474,11 @@ def get_valid_performance(model_path):
 
     my_model = MyModel(my_bert_encoder, my_relation_classifier, args, device)
 
-    corpus_name = list(corpus_file_dic.keys())[0]
-    entity_type_num_list, relation_num_list, file_train_valid_test_list = corpus_file_dic[corpus_name]
-    print("===============" + corpus_name + "===============")
-
     NER_train_set, NER_valid_set, NER_test_set, NER_TOKENS_fields, TAGS_Entity_Type_fields_dic \
-        = prepared_NER_data(tokenizer, file_train_valid_test_list, entity_type_num_list)
+        = prepared_NER_data(tokenizer, combining_data_files_list, entity_type_list)
 
     RC_train_set, RC_valid_set, RC_test_set, RC_TOKENS_fields, TAGS_Relation_pair_fields_dic, TAGS_sep_entity_fields_dic \
-        = prepared_RC_data(tokenizer, file_train_valid_test_list, relation_num_list)
+        = prepared_RC_data(tokenizer, combining_data_files_list, relation_list)
     
     train_set_list = [NER_train_set, RC_train_set]
     valid_set_list = [NER_valid_set, RC_valid_set]
