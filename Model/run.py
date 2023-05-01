@@ -299,7 +299,7 @@ class TrainValidTest:
                 if epoch >= args.Min_train_performance_Report:
                     report_performance(corpus_name, epoch, dic_train_loss,
                                        dic_batches_train_res,
-                                       self.my_model.classifiers_dic,
+                                       self.my_model.my_relation_classifier,
                                        self.sep_corpus_file_dic,
                                        "train")
 
@@ -311,7 +311,7 @@ class TrainValidTest:
                         dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
                             = report_performance(corpus_name_valid, epoch, dic_valid_loss,
                                                  dic_batches_valid_res,
-                                                 self.my_model.classifiers_dic,
+                                                 self.my_model.my_relation_classifier,
                                                  self.sep_corpus_file_dic,
                                                  "valid")
 
@@ -441,7 +441,7 @@ class TrainValidTest:
 
             dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
                 = report_performance(corpus_name, 0, dic_loss, dic_batches_res,
-                                     self.my_model.classifiers_dic,
+                                     self.my_model.my_relation_classifier,
                                      self.sep_corpus_file_dic,
                                      "train")
 
@@ -476,10 +476,9 @@ def get_valid_performance(model_path):
 
     my_bert_encoder = MyBertEncoder(bert, tokenizer, args, device)
 
-    my_model = MyModel(my_bert_encoder, args, device)
-
     my_relation_classifier = MyRelationClassifier(args, tokenizer, device)
-    classifiers_dic = dict(zip(["relation"], [my_relation_classifier]))
+
+    my_model = MyModel(my_bert_encoder, my_relation_classifier, args, device)
 
     corpus_name = list(corpus_file_dic.keys())[0]
     entity_type_num_list, relation_num_list, file_train_valid_test_list = corpus_file_dic[corpus_name]
@@ -498,8 +497,6 @@ def get_valid_performance(model_path):
 
     my_relation_classifier.create_classifiers(TAGS_Relation_pair_fields_dic, TAGS_sampled_entity_span_fields_dic,
                                               TAGS_Entity_Type_fields_dic)
-
-    my_model.add_classifiers(classifiers_dic)
 
     my_train_valid_test = TrainValidTest(data_ID_2_corpus_dic, my_model,
                                          train_set_list, valid_set_list, test_set_list,

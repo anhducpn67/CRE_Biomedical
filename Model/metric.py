@@ -115,7 +115,7 @@ def report_relation_PRF(list_batches_res, TAGS_Relation_fileds_dic, dic_sub_task
     return epoch_micro_P, epoch_micro_R, epoch_micro_F, dic_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, accumulated_each_class_total_TP_FN_FP
 
 
-def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, classifiers_dic, sep_corpus_file_dic, valid_flag):
+def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, relation_classifier, sep_corpus_file_dic, valid_flag):
     dic_PRF = {}
     dic_total_sub_task_P_R_F = {}
     dic_corpus_task_micro_P_R_F = {}
@@ -146,7 +146,7 @@ def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, classifier
         dic_sub_task_P_R_F, \
         dic_corpus_task_micro_P_R_F_relation, \
         accumulated_each_class_total_TP_FN_FP = report_relation_PRF(dic_batches_res["relation"],
-                                                                    classifiers_dic["relation"].TAGS_Types_fields_dic,
+                                                                    relation_classifier.TAGS_Types_fields_dic,
                                                                     dic_sub_task_corpus, corpus_list)
     print('          relation    : Loss: %.3f, P: %.3f, R: %.3f, F: %.3f \t\n\t\t\t'
           % (dic_loss["relation"], relation_micro_P, relation_micro_R, relation_micro_F))

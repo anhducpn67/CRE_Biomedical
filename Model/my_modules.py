@@ -363,19 +363,14 @@ class MyRelationClassifier(nn.Module):
 
 
 class MyModel(nn.Module):
-    def __init__(self, encoder, args, device):
+    def __init__(self, encoder, classifier, args, device):
         super(MyModel, self).__init__()
         self.to(device)
         self.device = device
         self.encoder = encoder
         self.task_list = args.Task_list
+        self.my_relation_classifier = classifier
         self.args = args
-        self.classifiers_dic = {}
-
-    def add_classifiers(self, classifiers_dic):
-        for task in ["relation"]:
-            setattr(self, 'my_{0}_classifier'.format(task), classifiers_dic[task])
-            self.classifiers_dic[task] = classifiers_dic[task]
 
     def get_relation_data(self, batch, dic_res_one_batch):
         batch_entity = []
