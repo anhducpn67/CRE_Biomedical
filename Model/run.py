@@ -39,14 +39,12 @@ parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relat
 
 parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
                     help="\"DDI\", \"Twi_ADE\", \"ADE\", \"CPR\", \"PPI\"")
-parser.add_argument('--Random_ratio', default=-1, type=float, help=">1 means mask all data from other corpus")
 parser.add_argument('--Test_flag', action='store_true', default=False)
 parser.add_argument('--Test_model_file', type=str, default="../result/save_model/???")
 
 parser.add_argument('--Entity_Prep_Way', default="standard", type=str,
                     help="\"standard\" or \"entity_type_marker\"")
 
-parser.add_argument('--Optim', default="AdamW", type=str, help="AdamW")
 parser.add_argument('--LR_bert', default=1e-5, type=float)
 parser.add_argument('--LR_classifier', default=1e-4, type=float)
 parser.add_argument('--L2', default=1e-2, type=float)
@@ -80,7 +78,7 @@ elif args.BERT_MODEL == "base":
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
 device = torch.device("cpu")
-OPTIMIZER = eval("optim." + args.Optim)
+OPTIMIZER = optim.AdamW
 SEED = 1234
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
@@ -130,14 +128,12 @@ class TrainValidTest:
         self.total_memorized_samples = []
 
         self.optimizer_bert_RC = OPTIMIZER(
-            params=filter(lambda p: p.requires_grad, self.my_model.encoder.parameters()), lr=args.LR_bert,
-            weight_decay=args.L2)
+            params=filter(lambda p: p.requires_grad, self.my_model.encoder.parameters()),
+            lr=args.LR_bert, weight_decay=args.L2)
 
-        for task in ["relation"]:
-            # set tasks optim
-            my_parameters = getattr(self.my_model, "my_" + task + "_classifier").parameters()
-            setattr(self, "optimizer_" + str(task), OPTIMIZER(params=filter(lambda p: p.requires_grad, my_parameters),
-                                                              lr=args.LR_classifier, weight_decay=args.L2))
+        self.optimizer_classifier = OPTIMIZER(
+            params=filter(lambda p: p.requires_grad, self.my_model.my_relation_classifier.parameters()),
+            lr=args.LR_classifier, weight_decay=args.L2)
 
     def get_dic_data(self, set_list):
         NER_data_dic = {}
@@ -199,9 +195,8 @@ class TrainValidTest:
                 self.optimizer_bert_RC.step()
                 self.optimizer_bert_RC.zero_grad()
 
-                for task in ["relation"]:
-                    getattr(self, "optimizer_" + str(task)).step()
-                    getattr(self, "optimizer_" + str(task)).zero_grad()
+                self.optimizer_classifier.step()
+                self.optimizer_classifier.zero_grad()
 
             # D_train
             with torch.cuda.amp.autocast():
@@ -218,9 +213,8 @@ class TrainValidTest:
                 self.optimizer_bert_RC.step()
                 self.optimizer_bert_RC.zero_grad()
 
-                for task in ["relation"]:
-                    getattr(self, "optimizer_" + str(task)).step()
-                    getattr(self, "optimizer_" + str(task)).zero_grad()
+                self.optimizer_classifier.step()
+                self.optimizer_classifier.zero_grad()
 
             dic_batches_res["ID_list"].append(batch_list[0].ID)
             dic_batches_res["corpus_name_list"].append(corpus_name_list)
@@ -428,7 +422,8 @@ class TrainValidTest:
                 epoch_loss = 0
                 count = 0
 
-                temp_my_iterator_list = [[ner, rc] for ner, rc in zip(self.test_iterator_dic[0], self.test_iterator_dic[1])]
+                temp_my_iterator_list = [[ner, rc] for ner, rc in
+                                         zip(self.test_iterator_dic[0], self.test_iterator_dic[1])]
 
                 for batch_list in temp_my_iterator_list:
                     count += 1
