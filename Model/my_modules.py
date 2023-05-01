@@ -403,15 +403,9 @@ class MyModel(nn.Module):
         return entity_type_list
 
     def forward(self, batch):
-        dic_res_one_batch = {}
-        dic_loss_one_batch = {}
-
         batch_entity, batch_entity_type = self.get_relation_data(batch)
-        one_batch_relation_res, one_batch_relation_loss = self.relation_extraction(batch, batch_entity, batch_entity_type)
-        dic_res_one_batch["relation"] = one_batch_relation_res
-        dic_loss_one_batch["relation"] = one_batch_relation_loss
-
-        return dic_loss_one_batch, dic_res_one_batch
+        batch_res, batch_loss = self.relation_extraction(batch, batch_entity, batch_entity_type)
+        return batch_loss, batch_res
 
     def entity_type_extraction(self, batch):
         batch_entity_type_gold = []

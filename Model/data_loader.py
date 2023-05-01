@@ -52,25 +52,17 @@ def get_data_ID_2_corpus_dic(corpus_list):
     return data_ID_2_corpus_dic
 
 
-def get_corpus_file_dic(all_data_flag, corpus_list, Task_list, base_large):
-    global v_list
-
+def get_corpus_file_dic(all_data_flag, corpus_list, base_large):
     with open("../data/corpus_information.json", "r") as f:
         raw_corpus_file_dic = eval(f.read())
 
     sep_corpus_file_dic = {}
     for corpus, sub_task_dic in raw_corpus_file_dic.items():
         sep_corpus_file_dic.setdefault(corpus, {})
-        for task in Task_list:
-            if task == "entity_span":
-                v_list = ["entity_span"]
-            if task == "entity_type":
-                v_list = raw_corpus_file_dic[corpus]['entity_type_list']
-                v_list = ["only_entity_type_" + i for i in v_list]
-            if task == "relation":
-                v_list = raw_corpus_file_dic[corpus]['relation_list']
-                v_list = ["relation_" + i for i in v_list]
-            sep_corpus_file_dic[corpus][task] = v_list
+        sep_corpus_file_dic[corpus]["entity_type"] = ["only_entity_type_" + i
+                                                      for i in raw_corpus_file_dic[corpus]['entity_type_list']]
+        sep_corpus_file_dic[corpus]["relation"] = ["relation_" + i
+                                                   for i in raw_corpus_file_dic[corpus]['relation_list']]
 
     # task list may not contain all corpus in corpus_information.json
     pick_corpus_file_dic = {}

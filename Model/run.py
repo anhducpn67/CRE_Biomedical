@@ -3,7 +3,6 @@
 import pickle
 import warnings
 import sys
-import shutil
 import argparse
 import os
 import copy
@@ -33,9 +32,6 @@ parser.add_argument('--EPOCH', default=3, type=int)
 parser.add_argument('--Min_train_performance_Report', default=1, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
-
-parser.add_argument('--Task_list', default=["entity_span", "entity_type", "relation"], nargs='+',
-                    help="\"entity_span\", \"entity_type\", \"relation\"")
 
 parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
                     help="\"DDI\", \"Twi_ADE\", \"ADE\", \"CPR\", \"PPI\"")
@@ -166,10 +162,9 @@ class TrainValidTest:
             if valid_test_flag == "train" and corpus_name_list[0] != args.Corpus_list[0]:
                 replay_batch = self.get_batch_memory()
                 with torch.cuda.amp.autocast():
-                    dic_loss_one_batch, _ = self.my_model.forward(replay_batch)
+                    batch_loss, _ = self.my_model.forward(replay_batch)
 
-                batch_relation_loss = dic_loss_one_batch["relation"]
-                batch_loss = 0.3 * batch_relation_loss
+                batch_loss = 0.3 * batch_loss
 
                 batch_loss.backward()
 
@@ -181,13 +176,12 @@ class TrainValidTest:
 
             # D_train
             with torch.cuda.amp.autocast():
-                dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch)
+                batch_loss, batch_res = self.my_model.forward(batch)
 
-            batch_relation_loss = dic_loss_one_batch["relation"]
-            epoch_loss += batch_relation_loss
+            epoch_loss += batch_loss
 
             if valid_test_flag == "train":
-                batch_loss = 0.3 * batch_relation_loss
+                batch_loss = 0.3 * batch_loss
 
                 batch_loss.backward()
 
@@ -199,7 +193,7 @@ class TrainValidTest:
 
             dic_batches_res["ID_list"].append(batch.ID)
             dic_batches_res["corpus_name_list"].append(corpus_name_list)
-            dic_batches_res["relation"].append(dic_res_one_batch["relation"])
+            dic_batches_res["relation"].append(batch_res)
 
         dic_loss = {"relation": epoch_loss, "average": epoch_loss / count}
 
@@ -276,9 +270,9 @@ class TrainValidTest:
                                                  self.sep_corpus_file_dic,
                                                  "valid")
 
-                    if dic_valid_PRF[args.Task_list[-1]][2] >= maxF:
+                    if dic_valid_PRF["relation"][2] >= maxF:
                         early_stop_num = args.EARLY_STOP_NUM
-                        maxF = dic_valid_PRF[args.Task_list[-1]][2]
+                        maxF = dic_valid_PRF["relation"][2]
                         record_best_dic = dic_valid_PRF
                         save_epoch = epoch
                         self.save_model(save_epoch)
@@ -380,14 +374,13 @@ class TrainValidTest:
                 for batch in self.test_iterator:
                     count += 1
                     with torch.cuda.amp.autocast():
-                        dic_loss_one_batch, dic_res_one_batch = self.my_model.forward(batch)
+                        batch_loss, batch_res = self.my_model.forward(batch)
 
-                    batch_relation_loss = dic_loss_one_batch["relation"]
-                    epoch_loss += batch_relation_loss
+                    epoch_loss += batch_loss
 
                     dic_batches_res["ID_list"].append(batch.ID)
                     dic_batches_res["tokens_list"].append(batch.tokens)
-                    dic_batches_res["relation"].append(dic_res_one_batch["relation"])
+                    dic_batches_res["relation"].append(batch_res)
 
                 dic_loss = {"average": epoch_loss / count, "relation": epoch_loss}
 
@@ -408,7 +401,7 @@ class TrainValidTest:
 @print_execute_time
 def get_valid_performance(model_path):
     sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
-        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.Task_list, args.BERT_MODEL)
+        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.BERT_MODEL)
 
     make_model_data(args.BERT_MODEL, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
                     args.All_data)
@@ -457,7 +450,6 @@ if __name__ == "__main__":
     print("LR_classifier: ", args.LR_classifier)
     print("All_data:", args.All_data)
     print("Corpus_list:", args.Corpus_list)
-    print("Task_list:", args.Task_list)
     print("Entity_Prep_Way:", args.Entity_Prep_Way)
     print("Loss:", args.Loss)
     print("EARLY_STOP_NUM:", args.EARLY_STOP_NUM)
