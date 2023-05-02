@@ -20,20 +20,20 @@ from metric import report_performance
 from my_modules import MyRelationClassifier, MyEncoder, MyModel
 from data_loader import prepared_data, get_corpus_file_dic, make_model_data
 
-parser = argparse.ArgumentParser(description="Bert Model")
-parser.add_argument('--ID', default=0, type=int, help="Model's ID")
+parser = argparse.ArgumentParser(description="Bert model")
+parser.add_argument('--ID', default=0, type=int, help="model's ID")
 parser.add_argument('--BERT_MODEL', default="base", type=str, help="base, large")
 parser.add_argument('--GPU', default="0", type=str)
-parser.add_argument('--All_data', action='store_true', default=False)
+parser.add_argument('--ALL_DATA', action='store_true', default=False)
 parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
 parser.add_argument('--Average_Time', default=1, type=int)
 parser.add_argument('--EPOCH', default=3, type=int)
-parser.add_argument('--Min_train_performance_Report', default=1, type=int)
+parser.add_argument('--MIN_EPOCH_VALID', default=1, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
 
-parser.add_argument('--Corpus_list', default=["DDI", "CPR", "Twi_ADE", "ADE", "PPI"], nargs='+',
+parser.add_argument('--Corpus_list', default=["Combine_ADE", "DDI", "CPR"], nargs='+',
                     help="\"DDI\", \"Twi_ADE\", \"ADE\", \"CPR\", \"PPI\"")
 parser.add_argument('--Test_flag', action='store_true', default=False)
 parser.add_argument('--Test_model_file', type=str, default="../result/save_model/???")
@@ -55,7 +55,7 @@ args = parser.parse_args()
 os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 warnings.filterwarnings("ignore")
 
-file_model_save = "../result/save_model/" + f"Model_{args.ID}"
+file_model_save = "../result/save_model/" + f"model_{args.ID}"
 file_memory_save = "../result/save_memorized_samples/" + f"memory_{args.ID}.pkl"
 file_training_performance = f'../result/detail_training/training_performance_{args.ID}.txt'
 
@@ -251,7 +251,7 @@ class TrainValidTest:
             self.set_iterator_for_specific_corpus([corpus_name])
             for epoch in range(0, args.EPOCH):
                 dic_train_loss, dic_batches_train_res = self.one_epoch_train([corpus_name])
-                if epoch >= args.Min_train_performance_Report:
+                if epoch >= args.MIN_EPOCH_VALID:
                     report_performance(corpus_name, epoch, dic_train_loss,
                                        dic_batches_train_res,
                                        self.my_model.classifier,
@@ -350,7 +350,7 @@ class TrainValidTest:
     def test_fn(self, idx_corpus, file_model_save_path):
         print("==================== Testing ====================")
         print(file_model_save_path)
-        print("Loading Model...")
+        print("Loading model...")
         checkpoint = torch.load(file_model_save_path)
         self.my_model.load_state_dict(checkpoint['my_model'])
         print("Loading success !")
@@ -401,10 +401,10 @@ class TrainValidTest:
 @print_execute_time
 def get_valid_performance(model_path):
     sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
-        = get_corpus_file_dic(args.All_data, args.Corpus_list, args.BERT_MODEL)
+        = get_corpus_file_dic(args.ALL_DATA, args.Corpus_list, args.BERT_MODEL)
 
     make_model_data(args.BERT_MODEL, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
-                    args.All_data)
+                    args.ALL_DATA)
     data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
                             "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
 
@@ -448,7 +448,7 @@ if __name__ == "__main__":
     print("Memory size: ", args.MEMORY_SIZE)
     print("LR_bert: ", args.LR_bert)
     print("LR_classifier: ", args.LR_classifier)
-    print("All_data:", args.All_data)
+    print("ALL_DATA:", args.ALL_DATA)
     print("Corpus_list:", args.Corpus_list)
     print("Entity_Prep_Way:", args.Entity_Prep_Way)
     print("Loss:", args.Loss)

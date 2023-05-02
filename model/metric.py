@@ -31,17 +31,8 @@ def add_new_relation(total_return_kin_ship, new_dic):
 
 
 def accumulated_each_class_TP_FN_FP(pred, tags, task_key, each_entity_TP_FN_FP):
-    """ task_key = both sub_task( drug, chemical, ... ) and task(span,type,relation) is ok
-    :param pred: segmengted span_List(output of def get_triple_O_seg)
-    :param tags: segmengted span_List(output of def get_triple_O_seg)
-    :param task_key:
-    :return:
-    """
-    # {'relation_Drug_Disease_interaction': (1194, 35, -1)}
     TP = 0
     new_dic_performance = {}
-    # pred = [sorted(eval(i)) for i in pred]
-    # tags = [sorted(eval(i)) for i in tags]
     for one_gold in tags:
         if one_gold in pred:
             TP += 1
