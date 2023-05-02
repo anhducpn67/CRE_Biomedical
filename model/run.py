@@ -145,7 +145,7 @@ class TrainValidTest:
         torch.save(self.model_state_dic, file_model_save)
 
     def one_epoch(self, corpus_name_list, batch_iterator, valid_test_flag):
-        dic_batches_res = {"ID_list": [], "corpus_name_list": [], "relation": []}
+        dic_batches_res = {"ID": [], "relation": []}
         epoch_loss = 0
         count = 0
 
@@ -191,8 +191,7 @@ class TrainValidTest:
                 self.optimizer_classifier.step()
                 self.optimizer_classifier.zero_grad()
 
-            dic_batches_res["ID_list"].append(batch.ID)
-            dic_batches_res["corpus_name_list"].append(corpus_name_list)
+            dic_batches_res["ID"].append(batch.ID)
             dic_batches_res["relation"].append(batch_res)
 
         dic_loss = {"relation": epoch_loss, "average": epoch_loss / count}
@@ -367,7 +366,7 @@ class TrainValidTest:
             self.set_iterator_for_specific_corpus(corpus_name)
             with torch.no_grad():
                 self.my_model.eval()
-                dic_batches_res = {"ID_list": [], "tokens_list": [], "relation": []}
+                dic_batches_res = {"ID": [], "relation": []}
                 epoch_loss = 0
                 count = 0
 
@@ -378,8 +377,7 @@ class TrainValidTest:
 
                     epoch_loss += batch_loss
 
-                    dic_batches_res["ID_list"].append(batch.ID)
-                    dic_batches_res["tokens_list"].append(batch.tokens)
+                    dic_batches_res["ID"].append(batch.ID)
                     dic_batches_res["relation"].append(batch_res)
 
                 dic_loss = {"average": epoch_loss / count, "relation": epoch_loss}

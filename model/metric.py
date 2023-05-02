@@ -1,62 +1,53 @@
-def combine_all_class_for_total_PRF(each_TP_FN_FP):
+def calc_micro_P_R_F1(relation_TP_FN_FP):
     total_TP = 0
     total_FN = 0
     total_FP = 0
-    for sub_task_key, TP_FN_FP_list in each_TP_FN_FP.items():
-        total_TP += TP_FN_FP_list[0]
-        total_FN += TP_FN_FP_list[1]
-        total_FP += TP_FN_FP_list[2]
+    for relation, (TP, FN, FP) in relation_TP_FN_FP.items():
+        total_TP += TP
+        total_FN += FN
+        total_FP += FP
 
-    micro_P, micro_R, micro_F = return_PRF(total_TP, total_FN, total_FP)
+    micro_P, micro_R, micro_F1 = calc_P_R_F1(total_TP, total_FN, total_FP)
 
-    return micro_P, micro_R, micro_F
+    return micro_P, micro_R, micro_F1
 
 
-def return_PRF(TP, FN, FP):
+def calc_P_R_F1(TP, FN, FP):
     P = TP / (TP + FP) if (TP + FP) != 0 else 0
     R = TP / (TP + FN) if (TP + FN) != 0 else 0
-    F = 2 * P * R / (P + R) if (P + R) != 0 else 0
-    return P * 100, R * 100, F * 100
+    F1 = 2 * P * R / (P + R) if (P + R) != 0 else 0
+    return P * 100, R * 100, F1 * 100
 
 
-def add_new_relation(total_return_kin_ship, new_dic):
-    for key, value in new_dic.items():
-        if key in total_return_kin_ship.keys():
-            total_return_kin_ship[key] = (total_return_kin_ship[key][0] + value[0],
-                                          total_return_kin_ship[key][1] + value[1],
-                                          total_return_kin_ship[key][2] + value[2])
-        else:
-            total_return_kin_ship[key] = value
-    return total_return_kin_ship
-
-
-def accumulated_each_class_TP_FN_FP(pred, tags, task_key, each_entity_TP_FN_FP):
+def accumulated_relation_TP_FN_FP(pred, gold, relation, relation_TP_FN_FP):
     TP = 0
-    new_dic_performance = {}
-    for one_gold in tags:
+    for one_gold in gold:
         if one_gold in pred:
             TP += 1
 
     FP = len(pred) - TP
-    FN = len(tags) - TP
+    FN = len(gold) - TP
     assert TP >= 0
     assert FN >= 0
     assert FP >= 0
 
-    new_dic_performance[task_key] = (TP, FN, FP)
-    added_each_TP_FN_FP = add_new_relation(each_entity_TP_FN_FP, new_dic_performance)
-
-    return added_each_TP_FN_FP
-
-
-def get_each_class_P_R_F(accumulated_each_class_total_TP_FN_FP):
-    dic_sub_task_P_R_F = {}
-    for sub_task, (TP, FN, FP) in accumulated_each_class_total_TP_FN_FP.items():
-        dic_sub_task_P_R_F[sub_task] = return_PRF(TP, FN, FP)
-    return dic_sub_task_P_R_F
+    if relation not in relation_TP_FN_FP.keys():
+        relation_TP_FN_FP[relation] = [TP, FN, FP]
+    else:
+        relation_TP_FN_FP[relation][0] += TP
+        relation_TP_FN_FP[relation][1] += FN
+        relation_TP_FN_FP[relation][2] += FP
+    return relation_TP_FN_FP
 
 
-def get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_task_corpus, corpus_list):
+def calc_relation_P_R_F1(relation_TP_FN_FP):
+    relation_P_R_F1 = {}
+    for relation, (TP, FN, FP) in relation_TP_FN_FP.items():
+        relation_P_R_F1[relation] = calc_P_R_F1(TP, FN, FP)
+    return relation_P_R_F1
+
+
+def calc_corpus_micro_P_R_F(relation_TP_FN_FP, dic_sub_task_corpus, corpus_list):
     """
          if one sub-task occued in many corpus, when in multi-task metric, each corpus PRF are not total precise,
          which contain other entity mention with same entity type
@@ -66,8 +57,8 @@ def get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_t
     for corpus in corpus_list:
         dic_corpus_total_TP_FN_FP.setdefault(corpus, [0, 0, 0])
 
-    for sub_task, (TP, FN, FP) in accumulated_each_class_total_TP_FN_FP.items():
-        corpus_list = dic_sub_task_corpus[sub_task]
+    for relation, (TP, FN, FP) in relation_TP_FN_FP.items():
+        corpus_list = dic_sub_task_corpus[relation]
 
         for corpus in corpus_list:
             dic_corpus_total_TP_FN_FP[corpus][0] = dic_corpus_total_TP_FN_FP[corpus][0] + TP
@@ -76,34 +67,28 @@ def get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP, dic_sub_t
 
     dic_corpus_task_micro_P_R_F = {}
     for corpus, TP_FN_FP_list in dic_corpus_total_TP_FN_FP.items():
-        dic_corpus_task_micro_P_R_F[corpus] = return_PRF(*TP_FN_FP_list)
+        dic_corpus_task_micro_P_R_F[corpus] = calc_P_R_F1(*TP_FN_FP_list)
 
     return dic_corpus_task_micro_P_R_F
 
 
-def report_relation_PRF(list_batches_res, TAGS_Relation_fields_dic, dic_sub_task_corpus, corpus_list):
-    sub_task_list = list(TAGS_Relation_fields_dic.keys())
-    accumulated_each_class_total_TP_FN_FP = {}
+def report_relation_PRF(list_batch_res, TAGS_Relation_fields_dic, dic_sub_task_corpus, corpus_list):
+    relation_list = list(TAGS_Relation_fields_dic.keys())
+    relation_TP_FN_FP = {}
 
-    for one_batch_gold_list, one_batch_pred_list in list_batches_res:
-        for one_sent_gold_dic, one_sent_pred_dic in zip(one_batch_gold_list, one_batch_pred_list):
-            for sub_task in sub_task_list:
-                if sub_task in dic_sub_task_corpus.keys():
-                    accumulated_each_class_total_TP_FN_FP = accumulated_each_class_TP_FN_FP(one_sent_pred_dic[sub_task],
-                                                                                            one_sent_gold_dic[sub_task],
-                                                                                            sub_task,
-                                                                                            accumulated_each_class_total_TP_FN_FP)
+    for batch_gold, batch_pred in list_batch_res:
+        for sent_gold, sent_pred in zip(batch_gold, batch_pred):
+            for relation in relation_list:
+                relation_TP_FN_FP = accumulated_relation_TP_FN_FP(sent_pred[relation],
+                                                                  sent_gold[relation],
+                                                                  relation,
+                                                                  relation_TP_FN_FP)
 
-    dic_sub_task_P_R_F = get_each_class_P_R_F(accumulated_each_class_total_TP_FN_FP)
-    epoch_micro_P, epoch_micro_R, epoch_micro_F = combine_all_class_for_total_PRF(accumulated_each_class_total_TP_FN_FP)
-    dic_corpus_task_micro_P_R_F = get_each_corpus_micro_P_R_F(accumulated_each_class_total_TP_FN_FP,
-                                                              dic_sub_task_corpus, corpus_list)
+    relation_P_R_F1 = calc_relation_P_R_F1(relation_TP_FN_FP)
+    micro_P, micro_R, micro_F1 = calc_micro_P_R_F1(relation_TP_FN_FP)
+    corpus_micro_P_R_F1 = calc_corpus_micro_P_R_F(relation_TP_FN_FP, dic_sub_task_corpus, corpus_list)
 
-    if epoch_micro_P > 100 or epoch_micro_R > 100 or epoch_micro_F > 100:
-        print(dic_sub_task_P_R_F)
-        print(accumulated_each_class_total_TP_FN_FP)
-        print(11)
-    return epoch_micro_P, epoch_micro_R, epoch_micro_F, dic_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, accumulated_each_class_total_TP_FN_FP
+    return micro_P, micro_R, micro_F1, relation_P_R_F1, corpus_micro_P_R_F1, relation_TP_FN_FP
 
 
 def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, relation_classifier, sep_corpus_file_dic, valid_flag):
