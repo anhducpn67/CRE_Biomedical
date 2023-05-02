@@ -1,8 +1,8 @@
 {
   "CPR": {
     "file_list": ["CPR_train_base_model_data.json", "CPR_valid_base_model_data.json", "CPR_test_base_model_data.json"],
-    "entity_type_list": ["Drug", "Gene"],
-    "relation_list": ["Drug_Gene_interaction"]
+    "entity_type_list": ["Drug", "Protein"],
+    "relation_list": ["Chemical_Protein_interaction"]
   },
   "DDI": {
     "file_list": ["DDI_train_base_model_data.json", "DDI_valid_base_model_data.json", "DDI_test_base_model_data.json"],

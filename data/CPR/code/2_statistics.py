@@ -3,7 +3,7 @@ def statistics_corpus_relation(file_path):
         data = f.readlines()
 
     print("* Relation statistics")
-    relation_list = ["relation_" + str(i) for i in ["Drug_Gene_interaction"]]
+    relation_list = ["Chemical_Protein_interaction"]
     num_relation_dic = {}
     for relation in relation_list:
         num_relation_dic.setdefault(relation, 0)
@@ -27,7 +27,7 @@ def statistics_corpus_entity(file_path):
     print(f"* Sent. count: {len(data)}")
 
     print("* Entity statistics")
-    entity_list = ["only_entity_type_" + str(i) for i in ["Drug", "Gene"]]
+    entity_list = ["Drug", "Protein"]
     num_entity_dict = {}
     for entity in entity_list:
         num_entity_dict.setdefault(entity, 0)

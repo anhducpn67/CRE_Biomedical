@@ -13,6 +13,8 @@ def refactor(path_in, path_out):
         del obj["entity_span_and_type"]
         del obj["joint_entity_type_Drug"]
         del obj["sampled_entity_span"]
+        obj["Drug"] = obj.pop("only_entity_type_Drug")
+        obj["Drug_Drug_interaction"] = obj.pop("relation_Drug_Drug_interaction")
         f_out.write(json.dumps(obj))
         f_out.write("\n")
 
