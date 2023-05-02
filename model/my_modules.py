@@ -73,10 +73,8 @@ class MyEncoder(nn.Module):
                     zip(batch_tokens, batch_entity, batch_entity_type)):
                 temp_token_list = one_sent_tokens.tolist()
                 for entity_index, (span, entity_type) in enumerate(zip(one_sent_entity, one_sent_entity_type)):
-                    temp_token_list.insert(span[0],
-                                           self.tokenizer.convert_tokens_to_ids("[Entity_" + entity_type + "]"))
-                    temp_token_list.insert(span[-1] + 2,
-                                           self.tokenizer.convert_tokens_to_ids("[/Entity_" + entity_type + "]"))
+                    temp_token_list.insert(span[0], self.tokenizer.convert_tokens_to_ids("[Entity_" + entity_type + "]"))
+                    temp_token_list.insert(span[-1] + 2, self.tokenizer.convert_tokens_to_ids("[/Entity_" + entity_type + "]"))
 
                     batch_entity[sent_index][entity_index].insert(0, span[0])
                     batch_entity[sent_index][entity_index].append(span[-1] + 2)
@@ -112,13 +110,12 @@ class MyEncoder(nn.Module):
                         one_sent_rep = self.get_entity_pair_rep(entity_pair_span, common_embedding[sent_index])
                         sent_entity_pair_rep_list.append(one_sent_rep)
                 else:
-                    sent_entity_pair_rep_list.append(
-                        torch.tensor([0] * self.output_dim * 2).float().to(self.device))
+                    sent_entity_pair_rep_list.append(torch.tensor([0] * self.output_dim * 2).float().to(self.device))
 
                 batch_entity_pair_vec_list.append(torch.stack(sent_entity_pair_rep_list))
 
-            batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list, batch_first=True,
-                                                              padding_value=padding_value)
+            batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list,
+                                                              batch_first=True, padding_value=padding_value)
 
             batch_added_marker_entity_span_vec = self.linear_transform(batch_added_marker_entity_span_vec)
             batch_added_marker_entity_span_vec = F.gelu(batch_added_marker_entity_span_vec)
@@ -148,8 +145,8 @@ class MyEncoder(nn.Module):
 
                 batch_entity_pair_vec_list.append(torch.stack(sent_entity_pair_rep_list))
                 batch_entity_pair_span_list.append(sent_entity_pair_span_list)
-            batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list, batch_first=True,
-                                                              padding_value=padding_value)
+            batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list,
+                                                              batch_first=True, padding_value=padding_value)
 
             return batch_added_marker_entity_span_vec, batch_entity_pair_span_list, batch_sent_len_list
         else:
@@ -178,8 +175,7 @@ class MyEncoder(nn.Module):
                                                                 batch_entity[sent_index][entity_index][1:-1]]
             batch_tokens_marker.append(torch.tensor(temp_token_list, device=self.device))
 
-        common_embedding = self.forward(
-            pad_sequence(batch_tokens_marker, batch_first=True, padding_value=padding_value))
+        common_embedding = self.forward(pad_sequence(batch_tokens_marker, batch_first=True, padding_value=padding_value))
 
         batch_entity_pair_span_list = []
         batch_entity_pair_vec_list = []
@@ -276,21 +272,21 @@ class MyRelationClassifier(nn.Module):
         self.TAGS_Types_fields_dic = TAGS_Types_fields_dic
         self.TAGS_Entity_Type_fields_dic = TAGS_Entity_Type_fields_dic
         self.TAGS_sep_entity_fields_dic = TAGS_sep_entity_fields_dic
-        self.my_relation_sub_task_list = list(self.TAGS_Types_fields_dic.keys())
-        self.my_entity_type_sub_task_list = list(self.TAGS_Entity_Type_fields_dic.keys())
+        self.relation_list = list(self.TAGS_Types_fields_dic.keys())
+        self.entity_type_list = list(self.TAGS_Entity_Type_fields_dic.keys())
 
-        for sub_task in self.my_relation_sub_task_list:
+        for relation in self.relation_list:
             my_binary_classifier = MyBinaryClassifier(self.TAGS_my_types_classification,
                                                       self.relation_input_dim, self.device,
                                                       ignore_index=self.ignore_index)
-            setattr(self, f'my_classifier_{sub_task}', my_binary_classifier)
+            setattr(self, f'my_classifier_{relation}', my_binary_classifier)
 
     def forward(self, batch_added_marker_entity_span_vec):
         loss_list = []
         sub_task_res_prob_list = []
         sub_task_res_yes_no_index_list = []
-        for sub_task in self.my_relation_sub_task_list:
-            res = self.get_binary_classifier(sub_task)(batch_added_marker_entity_span_vec)
+        for relation in self.relation_list:
+            res = self.get_binary_classifier(relation)(batch_added_marker_entity_span_vec)
             loss_list.append(res)
             res = torch.max(res, 2)
             sub_task_res_prob_list.append(res[0])
@@ -328,7 +324,7 @@ class MyRelationClassifier(nn.Module):
 
             if not one_sent_list:
                 pad_sub_task_list = [torch.tensor(self.ignore_index, dtype=torch.long, device=self.device)] * len(
-                    self.my_relation_sub_task_list)
+                    self.relation_list)
                 one_sent_list.append(torch.stack(pad_sub_task_list))
 
             batch_gold_for_loss_sub_task_list.append(torch.stack(one_sent_list))
@@ -411,14 +407,14 @@ class MyModel(nn.Module):
         batch_entity_type_gold = []
         for sent_index in range(len(batch)):
             gold_one_sent_all_sub_task_res_dic = {}
-            for sub_task in self.classifier.my_entity_type_sub_task_list:
-                gold_one_sent_all_sub_task_res_dic.setdefault(sub_task, [])
-                for entity in getattr(batch, sub_task)[sent_index]:
-                    entity_span = self.classifier.TAGS_Entity_Type_fields_dic[sub_task][1].vocab.itos[entity]
+            for entity_type in self.classifier.entity_type_list:
+                gold_one_sent_all_sub_task_res_dic.setdefault(entity_type, [])
+                for entity in getattr(batch, entity_type)[sent_index]:
+                    entity_span = self.classifier.TAGS_Entity_Type_fields_dic[entity_type][1].vocab.itos[entity]
                     if str(entity_span) != '[PAD]':
                         temp_pair = sorted(eval(entity_span))
-                        if temp_pair not in gold_one_sent_all_sub_task_res_dic[sub_task]:
-                            gold_one_sent_all_sub_task_res_dic[sub_task].append(temp_pair)
+                        if temp_pair not in gold_one_sent_all_sub_task_res_dic[entity_type]:
+                            gold_one_sent_all_sub_task_res_dic[entity_type].append(temp_pair)
             batch_entity_type_gold.append(gold_one_sent_all_sub_task_res_dic)
 
         return batch_entity_type_gold
@@ -429,22 +425,21 @@ class MyModel(nn.Module):
         batch_added_marker_entity_vec, batch_entity_pair_span_list, batch_sent_len_list = \
             self.encoder.batch_get_entity_pair_rep(batch.tokens, batch_entity, batch_entity_type)
 
-        batch_pred_raw_res_list, batch_pred_for_loss_sub_task_list = self.classifier(
-            batch_added_marker_entity_vec)
+        batch_pred_raw_res_list, batch_pred_for_loss_sub_task_list = self.classifier(batch_added_marker_entity_vec)
 
         batch_gold_res_list = []
         for sent_index in range(len(batch)):
             gold_one_sent_all_sub_task_res_dic = {}
-            for sub_task in self.classifier.my_relation_sub_task_list:
-                gold_one_sent_all_sub_task_res_dic.setdefault(sub_task, [])
+            for relation in self.classifier.relation_list:
+                gold_one_sent_all_sub_task_res_dic.setdefault(relation, [])
 
-                for entity_pair in getattr(batch, sub_task)[sent_index]:
-                    entity_pair_span = self.classifier.TAGS_Types_fields_dic[sub_task][1].vocab.itos[
+                for entity_pair in getattr(batch, relation)[sent_index]:
+                    entity_pair_span = self.classifier.TAGS_Types_fields_dic[relation][1].vocab.itos[
                         entity_pair]
                     if entity_pair_span != "[PAD]":
                         temp_pair = sorted(eval(entity_pair_span))
-                        if temp_pair not in gold_one_sent_all_sub_task_res_dic[sub_task]:
-                            gold_one_sent_all_sub_task_res_dic[sub_task].append(temp_pair)
+                        if temp_pair not in gold_one_sent_all_sub_task_res_dic[relation]:
+                            gold_one_sent_all_sub_task_res_dic[relation].append(temp_pair)
 
             batch_gold_res_list.append(gold_one_sent_all_sub_task_res_dic)
 
@@ -452,12 +447,12 @@ class MyModel(nn.Module):
         for sent_index in range(len(batch)):
             sent_len = batch_sent_len_list[sent_index]
             pred_one_sent_all_sub_task_res_dic = {}
-            for sub_task_index, sub_task in enumerate(self.classifier.my_relation_sub_task_list):
-                pred_one_sent_all_sub_task_res_dic.setdefault(sub_task, [])
+            for relation_index, relation in enumerate(self.classifier.relation_list):
+                pred_one_sent_all_sub_task_res_dic.setdefault(relation, [])
                 for entity_pair_span, pred_type in zip(batch_entity_pair_span_list[sent_index][:sent_len],
                                                        batch_pred_raw_res_list[sent_index][:sent_len]):
-                    if pred_type == sub_task_index:
-                        pred_one_sent_all_sub_task_res_dic[sub_task].append(entity_pair_span)
+                    if pred_type == relation_index:
+                        pred_one_sent_all_sub_task_res_dic[relation].append(entity_pair_span)
             batch_pred_res_list.append(pred_one_sent_all_sub_task_res_dic)
 
         batch_gold_for_loss_sub_task_tensor = self.classifier.make_gold_for_loss(
@@ -465,8 +460,8 @@ class MyModel(nn.Module):
             self.classifier.TAGS_my_types_classification.vocab)
 
         if self.classifier.args.Loss == "CE":
-            one_batch_relation_loss = self.classifier.get_ensembled_ce_loss(
-                batch_pred_for_loss_sub_task_list, batch_gold_for_loss_sub_task_tensor)
+            one_batch_relation_loss = self.classifier.get_ensembled_ce_loss(batch_pred_for_loss_sub_task_list,
+                                                                            batch_gold_for_loss_sub_task_tensor)
         elif self.classifier.args.Loss == "BCE":
             one_batch_relation_loss = self.classifier.BCE_loss(batch_pred_for_loss_sub_task_list,
                                                                batch_gold_for_loss_sub_task_tensor)
