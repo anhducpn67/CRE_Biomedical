@@ -52,22 +52,13 @@ def get_data_ID_2_corpus_dic(corpus_list):
     return data_ID_2_corpus_dic
 
 
-def get_corpus_file_dic(all_data_flag, corpus_list, base_large):
+def get_corpus_list_information(all_data_flag, corpus_list, base_large):
     with open("../data/corpus_information.json", "r") as f:
         raw_corpus_file_dic = eval(f.read())
 
-    sep_corpus_file_dic = {}
-    for corpus, sub_task_dic in raw_corpus_file_dic.items():
-        sep_corpus_file_dic.setdefault(corpus, {})
-        sep_corpus_file_dic[corpus]["entity_type"] = ["only_entity_type_" + i
-                                                      for i in raw_corpus_file_dic[corpus]['entity_type_list']]
-        sep_corpus_file_dic[corpus]["relation"] = ["relation_" + i
-                                                   for i in raw_corpus_file_dic[corpus]['relation_list']]
-
-    # task list may not contain all corpus in corpus_information.json
-    pick_corpus_file_dic = {}
+    corpus_information = {}
     for corpus in corpus_list:
-        pick_corpus_file_dic[corpus] = raw_corpus_file_dic[corpus]
+        corpus_information[corpus] = raw_corpus_file_dic[corpus]
 
     # new file address
     if all_data_flag:
@@ -87,13 +78,13 @@ def get_corpus_file_dic(all_data_flag, corpus_list, base_large):
 
     entity_type_list = []
     relation_list = []
-    for name, value in pick_corpus_file_dic.items():
+    for name, value in corpus_information.items():
         entity_type_list.extend(value["entity_type_list"])
         relation_list.extend(value["relation_list"])
     entity_type_list = list(set(entity_type_list))
     relation_list = list(set(relation_list))
 
-    return sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list
+    return corpus_information, combining_data_files_list, entity_type_list, relation_list
 
 
 def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
@@ -140,11 +131,11 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
                 for one_record in writen_data:
                     one_record = eval(one_record)
                     for entity_type in entity_type_list:
-                        if "only_entity_type_" + entity_type not in one_record.keys():
-                            one_record["only_entity_type_" + entity_type] = []
+                        if entity_type not in one_record.keys():
+                            one_record[entity_type] = []
                     for relation in relation_list:
-                        if "relation_" + relation not in one_record.keys():
-                            one_record["relation_" + relation] = []
+                        if relation not in one_record.keys():
+                            one_record[relation] = []
 
                     multi_task_file.write(json.dumps(dict(sorted(one_record.items(), key=lambda item: len(item[0])))))
                     multi_task_file.write('\n')
@@ -161,19 +152,17 @@ def prepared_data(tokenizer, file_train_valid_test_list, entity_type_list, relat
 
     TAGS_Entity_Type_fields_dic = {}
     for entity in entity_type_list:
-        TAGS_Entity_Type_fields_dic["only_entity_type_" + entity] = ("only_entity_type_" + entity,
-                                                                     torchtext.legacy.data.Field(dtype=torch.long,
-                                                                                                 batch_first=True,
-                                                                                                 pad_token=tokenizer.pad_token,
-                                                                                                 unk_token=None))
+        TAGS_Entity_Type_fields_dic[entity] = (entity, torchtext.legacy.data.Field(dtype=torch.long,
+                                                                                   batch_first=True,
+                                                                                   pad_token=tokenizer.pad_token,
+                                                                                   unk_token=None))
 
     TAGS_Relation_fields_dic = {}
     for relation in relation_list:
-        TAGS_Relation_fields_dic["relation_" + relation] = ("relation_" + relation,
-                                                            torchtext.legacy.data.Field(dtype=torch.long,
-                                                                                        batch_first=True,
-                                                                                        pad_token=tokenizer.pad_token,
-                                                                                        unk_token=None))
+        TAGS_Relation_fields_dic[relation] = (relation, torchtext.legacy.data.Field(dtype=torch.long,
+                                                                                    batch_first=True,
+                                                                                    pad_token=tokenizer.pad_token,
+                                                                                    unk_token=None))
 
     fields = {
         'ID': ('ID', ID_fields),

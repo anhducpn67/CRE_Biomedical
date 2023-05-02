@@ -18,7 +18,7 @@ import torch.optim as optim
 from utils import print_execute_time, Logger, record_detail_performance
 from metric import report_performance
 from my_modules import MyRelationClassifier, MyEncoder, MyModel
-from data_loader import prepared_data, get_corpus_file_dic, make_model_data
+from data_loader import prepared_data, get_corpus_list_information, make_model_data
 
 parser = argparse.ArgumentParser(description="Bert model")
 parser.add_argument('--ID', default=0, type=int, help="model's ID")
@@ -262,22 +262,22 @@ class TrainValidTest:
                         corpus_name_valid = corpus_list[i]
                         self.set_iterator_for_specific_corpus([corpus_name_valid])
                         dic_valid_loss, dic_batches_valid_res = self.one_epoch_valid(corpus_name_valid)
-                        dic_valid_PRF, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
+                        micro_P_R_F1, dic_valid_total_sub_task_P_R_F, dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP \
                             = report_performance(corpus_name_valid, epoch, dic_valid_loss,
                                                  dic_batches_valid_res,
                                                  self.my_model.classifier,
                                                  self.sep_corpus_file_dic,
                                                  "valid")
 
-                    if dic_valid_PRF["relation"][2] >= maxF:
+                    if micro_P_R_F1[2] >= maxF:
                         early_stop_num = args.EARLY_STOP_NUM
-                        maxF = dic_valid_PRF["relation"][2]
-                        record_best_dic = dic_valid_PRF
+                        maxF = micro_P_R_F1[2]
+                        record_best_dic = micro_P_R_F1
                         save_epoch = epoch
                         self.save_model(save_epoch)
                         file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/performance_{str(corpus_name)}.txt'
                         os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
-                        record_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, dic_valid_PRF,
+                        record_detail_performance(epoch, dic_valid_total_sub_task_P_R_F, micro_P_R_F1,
                                                   file_detail_performance,
                                                   dic_valid_corpus_task_micro_P_R_F, dic_valid_TP_FN_FP,
                                                   self.sep_corpus_file_dic, ["relation"], corpus_name,
@@ -286,19 +286,15 @@ class TrainValidTest:
                         early_stop_num -= 1
 
                     if early_stop_num <= 0:
-                        print()
                         print("early stop, in epoch: %d !" % (int(save_epoch)))
-                        for task in ["relation"]:
-                            print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
+                        print("max micro-F1: %s " % (str(record_best_dic[-1])))
                         break
-
                 else:
                     print("epoch: ", epoch)
             print()
             print("Reach max epoch: %d !" % (int(save_epoch)))
 
-            for task in ["relation"]:
-                print(task, ": max F: %s, " % (str(record_best_dic[task][-1])))
+            print("max micro-F1: %s " % (str(record_best_dic[-1])))
             # shutil.copy(file_model_save, file_model_save + "_" + corpus_name)
             print(f"==================== Create memorized samples for {corpus_name} ====================")
             self.set_iterator_for_specific_corpus([corpus_name])
@@ -382,7 +378,7 @@ class TrainValidTest:
 
                 dic_loss = {"average": epoch_loss / count, "relation": epoch_loss}
 
-            dic_test_PRF, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
+            micro_P_R_F1, dic_total_sub_task_P_R_F, dic_corpus_task_micro_P_R_F, dic_TP_FN_FP \
                 = report_performance(corpus_name, 0, dic_loss, dic_batches_res,
                                      self.my_model.classifier,
                                      self.sep_corpus_file_dic,
@@ -390,7 +386,7 @@ class TrainValidTest:
 
             file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/{idx_corpus}/performance_{str(corpus_name)}.txt'
             os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
-            record_detail_performance(0, dic_total_sub_task_P_R_F, dic_test_PRF,
+            record_detail_performance(0, dic_total_sub_task_P_R_F, micro_P_R_F1,
                                       file_detail_performance.replace('.txt', "_TAC.txt"),
                                       dic_corpus_task_micro_P_R_F, dic_TP_FN_FP,
                                       self.sep_corpus_file_dic, ["relation"], corpus_name, args.Average_Time)
@@ -398,10 +394,10 @@ class TrainValidTest:
 
 @print_execute_time
 def get_valid_performance(model_path):
-    sep_corpus_file_dic, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list \
-        = get_corpus_file_dic(args.ALL_DATA, args.Corpus_list, args.BERT_MODEL)
+    corpus_information, combining_data_files_list, entity_type_list, relation_list \
+        = get_corpus_list_information(args.ALL_DATA, args.Corpus_list, args.BERT_MODEL)
 
-    make_model_data(args.BERT_MODEL, pick_corpus_file_dic, combining_data_files_list, entity_type_list, relation_list,
+    make_model_data(args.BERT_MODEL, corpus_information, combining_data_files_list, entity_type_list, relation_list,
                     args.ALL_DATA)
     data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
                             "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
@@ -431,7 +427,7 @@ def get_valid_performance(model_path):
 
     my_train_valid_test = TrainValidTest(data_ID_2_corpus_dic, my_model,
                                          train_dataset, valid_dataset, test_dataset,
-                                         sep_corpus_file_dic)
+                                         corpus_information)
     Average_Time_list = []
     for i in range(args.Average_Time):
         print("==========================" + str(i) + "=================================================")

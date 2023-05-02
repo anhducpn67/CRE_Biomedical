@@ -28,15 +28,16 @@ def print_execute_time(func):
     return wrapper
 
 
-def record_detail_performance(epoch, dic_total_sub_task_P_R_F, dic_valid_PRF, file_detail_performance,
+def record_detail_performance(epoch, dic_total_sub_task_P_R_F, micro_P_R_F1, file_detail_performance,
                               dic_corpus_task_micro_P_R_F, dic_TP_FN_FP, corpus_file_dic, task_list, corpus_list,
                               average_Time):
     with open(file_detail_performance, "w") as f:
         f.write("only record average_Time in : " + str(average_Time) + "\n")
         f.write("epoch: " + str(epoch) + "\n")
         f.write("total performance: " + "\n")
-        for k, v in dic_valid_PRF.items():
-            f.write("\t" + str(k) + ": " + str([round(i, 3) for i in v]) + "\n")
+        f.write("\tMicro-P: " + str(round(micro_P_R_F1[0], 3)) + "\n")
+        f.write("\tMicro-R: " + str(round(micro_P_R_F1[1], 3)) + "\n")
+        f.write("\tMicro-F1: " + str(round(micro_P_R_F1[2], 3)) + "\n")
         f.write("\n")
         f.write("============================================================")
 
