@@ -2,6 +2,7 @@ import os
 import numpy as np
 import re
 
+
 def process_0(raw_data, res_file):
     with open(raw_data, 'r', encoding='utf-8') as f:
         raw_data = f.readlines()

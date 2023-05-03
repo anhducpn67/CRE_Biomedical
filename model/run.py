@@ -94,14 +94,14 @@ def select_data(all_embedding_representations):
 
 
 class TrainValidTest:
-    def __init__(self, data_ID_2_corpus_dic, my_model,
+    def __init__(self, ID_to_corpus_dic, my_model,
                  train_dataset, valid_dataset, test_dataset,
                  corpus_information, relation_list):
 
         self.my_model = my_model.to(device)
         self.model_state_dic = {}
 
-        self.data_ID_2_corpus_dic = data_ID_2_corpus_dic
+        self.ID_to_corpus_dic = ID_to_corpus_dic
 
         self.train_dataset = train_dataset
         self.valid_dataset = valid_dataset
@@ -133,7 +133,7 @@ class TrainValidTest:
         corpus_to_example = {}
 
         for example in dataset:
-            corpus_name = self.data_ID_2_corpus_dic[str(int(example.ID))[:5]]
+            corpus_name = self.ID_to_corpus_dic[str(int(example.ID))[:5]]
             corpus_to_example.setdefault(corpus_name, [])
             corpus_to_example[corpus_name].append(example)
 
@@ -387,8 +387,8 @@ def get_valid_performance(model_path):
 
     make_model_data(args.BERT_MODEL, corpus_information, combining_data_files_list, entity_type_list, relation_list,
                     args.ALL_DATA)
-    data_ID_2_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
-                            "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
+    ID_to_corpus_dic = {"11111": "CPR", "22222": "DDI", "33333": "Twi_ADE", "44444": "ADE",
+                        "55555": "PPI", "66666": "BioInfer", "77777": "Combine_ADE"}
 
     bert = transformers.BertModel.from_pretrained(model_path, is_decoder=False, add_cross_attention=False)
     tokenizer = transformers.BertTokenizer.from_pretrained(model_path)
@@ -413,7 +413,7 @@ def get_valid_performance(model_path):
                                               TAGS_sep_entity_fields_dic,
                                               TAGS_Entity_Type_fields_dic)
 
-    my_train_valid_test = TrainValidTest(data_ID_2_corpus_dic, my_model,
+    my_train_valid_test = TrainValidTest(ID_to_corpus_dic, my_model,
                                          train_dataset, valid_dataset, test_dataset,
                                          corpus_information, relation_list)
 
