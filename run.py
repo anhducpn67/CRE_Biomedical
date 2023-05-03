@@ -15,9 +15,11 @@ import torch
 import transformers
 import torch.optim as optim
 
-from utils import print_execute_time, Logger, record_detail_performance
-from metric import report_performance
-from my_modules import MyRelationClassifier, MyEncoder, MyModel
+from utils import print_execute_time, Logger
+from metric import report_performance, record_detail_performance
+from model.my_model import MyModel
+from model.my_encoder import MyEncoder
+from model.my_classifier import MyRelationClassifier
 from data_loader import prepared_data, get_corpus_list_information, make_model_data
 
 parser = argparse.ArgumentParser(description="Bert model")
@@ -27,8 +29,8 @@ parser.add_argument('--GPU', default="0", type=str)
 parser.add_argument('--ALL_DATA', action='store_true', default=False)
 parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
-parser.add_argument('--EPOCH', default=30, type=int)
-parser.add_argument('--MIN_EPOCH_VALID', default=5, type=int)
+parser.add_argument('--EPOCH', default=3, type=int)
+parser.add_argument('--MIN_EPOCH_VALID', default=2, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
 
@@ -54,9 +56,9 @@ args = parser.parse_args()
 os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 warnings.filterwarnings("ignore")
 
-file_model_save = "../result/save_model/" + f"model_{args.ID}"
-file_memory_save = "../result/save_memorized_samples/" + f"memory_{args.ID}.pkl"
-file_training_performance = f'../result/detail_training/training_performance_{args.ID}.txt'
+file_model_save = "result/save_model/" + f"model_{args.ID}"
+file_memory_save = "result/save_memorized_samples/" + f"memory_{args.ID}.pkl"
+file_training_performance = f'result/detail_training/training_performance_{args.ID}.txt'
 
 sys.stdout = Logger(filename=file_training_performance)
 
@@ -272,7 +274,7 @@ class TrainValidTest:
                         maxF = micro_P_R_F1[2]
                         save_epoch = epoch
                         self.save_model(save_epoch)
-                        file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/performance_{corpus_name}.txt'
+                        file_detail_performance = f'result/detail_performance/continual_{str(args.ID)}/performance_{corpus_name}.txt'
                         os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
                         record_detail_performance(relation_P_R_F1, micro_P_R_F1, file_detail_performance,
                                                   relation_TP_FN_FP, self.corpus_information, [corpus_name])
@@ -373,10 +375,10 @@ class TrainValidTest:
                                                                                   self.relation_list,
                                                                                   "train")
 
-            file_detail_performance = f'../result/detail_performance/continual_{str(args.ID)}/{idx_corpus}/performance_{str(corpus_name)}.txt'
+            file_detail_performance = f'result/detail_performance/continual_{str(args.ID)}/{idx_corpus}/performance_{str(corpus_name)}.txt'
             os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)
             record_detail_performance(relation_P_R_F1, micro_P_R_F1,
-                                      file_detail_performance.replace('.txt', "_TAC.txt"),
+                                      file_detail_performance.replace('.txt', "_test.txt"),
                                       relation_TP_FN_FP, self.corpus_information, corpus_name)
 
 

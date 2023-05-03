@@ -96,3 +96,23 @@ def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, relation_l
     micro_P_R_F1 = (micro_P, micro_R, micro_F1)
 
     return micro_P_R_F1, relation_P_R_F1, relation_TP_FN_FP
+
+
+def record_detail_performance(relation_P_R_F1, micro_P_R_F1, file_detail_performance,
+                              relation_TP_FN_FP, corpus_information, corpus_list):
+    with open(file_detail_performance, "w") as f:
+        f.write("total performance: " + "\n")
+        f.write("\tMicro-P: " + str(round(micro_P_R_F1[0], 3)) + "\n")
+        f.write("\tMicro-R: " + str(round(micro_P_R_F1[1], 3)) + "\n")
+        f.write("\tMicro-F1: " + str(round(micro_P_R_F1[2], 3)) + "\n")
+        f.write("\n")
+        f.write("============================================================\n")
+
+        for corpus in corpus_list:
+            f.write(corpus + "\n")
+            for relation in corpus_information[corpus]["relation_list"]:
+                f.write("\t %-16s: %-25s \t TP_FN_FP: %-5s \n" % (str(relation),
+                                                                  str([round(i, 3) for i in relation_P_R_F1[relation]]),
+                                                                  str(relation_TP_FN_FP[relation])))
+            f.write("\n")
+            f.write("============================================================\n")

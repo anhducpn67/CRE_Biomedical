@@ -41,9 +41,9 @@ def get_data_ID_2_corpus_dic(corpus_list):
     data_ID_2_corpus_dic = {}
     for corpus in corpus_list:
         combining_data_files_list = [
-            os.path.join('../data', corpus, "BIOES", "base", corpus + '_train_base_model_data.json'),
-            os.path.join('../data', corpus, "BIOES", "base", corpus + '_valid_base_model_data.json'),
-            os.path.join('../data', corpus, "BIOES", "base", corpus + '_test_base_model_data.json')]
+            os.path.join('data', corpus, "BIOES", "base", corpus + '_train_base_model_data.json'),
+            os.path.join('data', corpus, "BIOES", "base", corpus + '_valid_base_model_data.json'),
+            os.path.join('data', corpus, "BIOES", "base", corpus + '_test_base_model_data.json')]
         for file in combining_data_files_list:
             with open(file, "r") as f:
                 data_list = f.readlines()
@@ -53,7 +53,7 @@ def get_data_ID_2_corpus_dic(corpus_list):
 
 
 def get_corpus_list_information(all_data_flag, corpus_list, base_large):
-    with open("../data/corpus_information.json", "r") as f:
+    with open("data/corpus_information.json", "r") as f:
         raw_corpus_file_dic = eval(f.read())
 
     corpus_information = {}
@@ -62,18 +62,18 @@ def get_corpus_list_information(all_data_flag, corpus_list, base_large):
 
     # new file address
     if all_data_flag:
-        combining_data_files_list = [os.path.join('../data', 'Multi_Task_Training', base_large,
+        combining_data_files_list = [os.path.join('data', 'Multi_Task_Training', base_large,
                                                   str(corpus_list) + '_train_base_model_data.json'),
-                                     os.path.join('../data', 'Multi_Task_Training', base_large,
+                                     os.path.join('data', 'Multi_Task_Training', base_large,
                                                   str(corpus_list) + '_valid_base_model_data.json'),
-                                     os.path.join('../data', 'Multi_Task_Training', base_large,
+                                     os.path.join('data', 'Multi_Task_Training', base_large,
                                                   str(corpus_list) + '_test_base_model_data.json')]
     else:
-        combining_data_files_list = [os.path.join('../data', 'Multi_Task_Training', base_large, 'test',
+        combining_data_files_list = [os.path.join('data', 'Multi_Task_Training', base_large, 'test',
                                                   str(corpus_list) + '_train_base_model_data.json'),
-                                     os.path.join('../data', 'Multi_Task_Training', base_large, 'test',
+                                     os.path.join('data', 'Multi_Task_Training', base_large, 'test',
                                                   str(corpus_list) + '_valid_base_model_data.json'),
-                                     os.path.join('../data', 'Multi_Task_Training', base_large, 'test',
+                                     os.path.join('data', 'Multi_Task_Training', base_large, 'test',
                                                   str(corpus_list) + '_test_base_model_data.json')]
 
     entity_type_list = []
@@ -110,10 +110,10 @@ def make_model_data(base_large, pick_corpus_file_dic, combining_data_files_list,
             corpus_train_valid_test_file = corpus_inform["file_list"]
             for index, raw_train_valid_test_file in enumerate(corpus_train_valid_test_file):
                 if all_data_flag:
-                    raw_train_valid_test_file = os.path.join('../data', corpus_name, 'BIOES', base_large,
+                    raw_train_valid_test_file = os.path.join('data', corpus_name, 'BIOES', base_large,
                                                              raw_train_valid_test_file)
                 else:
-                    raw_train_valid_test_file = os.path.join('../data', corpus_name, 'BIOES', base_large, 'test',
+                    raw_train_valid_test_file = os.path.join('data', corpus_name, 'BIOES', base_large, 'test',
                                                              raw_train_valid_test_file)
 
                 if base_large == "large":
