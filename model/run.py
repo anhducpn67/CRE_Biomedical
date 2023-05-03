@@ -27,21 +27,20 @@ parser.add_argument('--GPU', default="0", type=str)
 parser.add_argument('--ALL_DATA', action='store_true', default=False)
 parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
-parser.add_argument('--EPOCH', default=3, type=int)
-parser.add_argument('--MIN_EPOCH_VALID', default=1, type=int)
+parser.add_argument('--EPOCH', default=30, type=int)
+parser.add_argument('--MIN_EPOCH_VALID', default=5, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
 
 parser.add_argument('--Corpus_list', default=["Combine_ADE", "DDI", "CPR"], nargs='+',
                     help="\"DDI\", \"Twi_ADE\", \"ADE\", \"CPR\", \"PPI\"")
-parser.add_argument('--Test_flag', action='store_true', default=False)
-parser.add_argument('--Test_model_file', type=str, default="../result/save_model/???")
+parser.add_argument('--Only_test', action='store_true', default=False)
 
 parser.add_argument('--Entity_Prep_Way', default="entity_type_marker", type=str,
                     help="\"standard\" or \"entity_type_marker\"")
 
 parser.add_argument('--LR_bert', default=1e-5, type=float)
-parser.add_argument('--LR_classifier', default=1e-5, type=float)
+parser.add_argument('--LR_classifier', default=1e-4, type=float)
 parser.add_argument('--L2', default=1e-2, type=float)
 
 parser.add_argument('--Weight_Loss', action='store_true', default=True)
@@ -62,17 +61,17 @@ file_training_performance = f'../result/detail_training/training_performance_{ar
 sys.stdout = Logger(filename=file_training_performance)
 
 if args.BERT_MODEL == "large":
-    args.model_path = "../../../Data/embedding/biobert_large"
+    args.bert_model_path = "../../../Data/embedding/biobert_large"
     args.Word_embedding_size = 1024
     args.Hidden_Size_Common_Encoder = args.Word_embedding_size
 elif args.BERT_MODEL == "base":
-    args.model_path = "dmis-lab/biobert-base-cased-v1.1"
+    args.bert_model_path = "dmis-lab/biobert-base-cased-v1.1"
     args.Word_embedding_size = 768
     args.Hidden_Size_Common_Encoder = args.Word_embedding_size
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
-device = torch.device("cpu")
+device = torch.device("cuda")
 SEED = 1234
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
@@ -418,7 +417,10 @@ def get_valid_performance(model_path):
                                          train_dataset, valid_dataset, test_dataset,
                                          corpus_information, relation_list)
 
-    my_train_valid_test.train_valid_fn()
+    if args.Only_test:
+        my_train_valid_test.test_fn(len(args.Corpus_list) - 1, file_model_save)
+    else:
+        my_train_valid_test.train_valid_fn()
 
 
 if __name__ == "__main__":
@@ -433,6 +435,6 @@ if __name__ == "__main__":
     print("Entity_Prep_Way:", args.Entity_Prep_Way)
     print("Loss:", args.Loss)
     print("EARLY_STOP_NUM:", args.EARLY_STOP_NUM)
-    print("Test_flag:", args.Test_flag)
+    print("Only_test:", args.Only_test)
 
-    get_valid_performance(args.model_path)
+    get_valid_performance(args.bert_model_path)
