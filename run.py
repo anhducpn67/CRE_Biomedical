@@ -338,7 +338,7 @@ class TrainValidTest:
         print("==================== Testing ====================")
         print(file_model_save_path)
         print("Loading model...")
-        checkpoint = torch.load(file_model_save_path)
+        checkpoint = torch.load(file_model_save_path, map_location=device)
         self.my_model.load_state_dict(checkpoint['my_model'])
         print("Loading success !")
 
@@ -373,7 +373,7 @@ class TrainValidTest:
             micro_P_R_F1, relation_P_R_F1, relation_TP_FN_FP = report_performance(corpus_name, 0, dic_loss,
                                                                                   dic_batches_res,
                                                                                   self.relation_list,
-                                                                                  "train")
+                                                                                  "test")
 
             file_detail_performance = f'result/detail_performance/continual_{str(args.ID)}/{idx_corpus}/performance_{str(corpus_name)}.txt'
             os.makedirs(os.path.dirname(file_detail_performance), exist_ok=True)

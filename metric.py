@@ -84,9 +84,12 @@ def report_performance(corpus_name, epoch, dic_loss, dic_batches_res, relation_l
     if valid_flag == "train":
         print(corpus_name)
         print('Epoch: %1d, train average_loss: %2f' % (epoch, dic_loss["average"]))
-    else:
+    if valid_flag == "valid":
         print(corpus_name)
-        print("  validing ... ")
+        print("  validating ... ")
+    if valid_flag == "test":
+        print(corpus_name)
+        print("  testing ... ")
 
     micro_P, micro_R, micro_F1, relation_P_R_F1, relation_TP_FN_FP = report_relation_PRF(dic_batches_res["relation"],
                                                                                          relation_list)
