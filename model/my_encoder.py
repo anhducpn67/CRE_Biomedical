@@ -160,8 +160,7 @@ class MyEncoder(nn.Module):
             temp_token_list = one_sent_tokens.tolist()
             for entity_index, (span, entity_type) in enumerate(zip(one_sent_entity, one_sent_type)):
                 temp_token_list.insert(span[0], self.tokenizer.convert_tokens_to_ids("[Entity_" + entity_type + "]"))
-                temp_token_list.insert(span[-1] + 2,
-                                       self.tokenizer.convert_tokens_to_ids("[/Entity_" + entity_type + "]"))
+                temp_token_list.insert(span[-1] + 2, self.tokenizer.convert_tokens_to_ids("[/Entity_" + entity_type + "]"))
 
                 batch_entity[sent_index][entity_index].insert(0, span[0])
                 batch_entity[sent_index][entity_index].append(span[-1] + 2)
@@ -208,8 +207,8 @@ class MyEncoder(nn.Module):
 
             batch_entity_pair_vec_list.append(torch.stack(sent_entity_pair_rep_list))
 
-        batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list, batch_first=True,
-                                                          padding_value=padding_value)
+        batch_added_marker_entity_span_vec = pad_sequence(batch_entity_pair_vec_list,
+                                                          batch_first=True, padding_value=padding_value)
 
         batch_added_marker_entity_span_vec = self.linear_transform(batch_added_marker_entity_span_vec)
         batch_added_marker_entity_span_vec = F.gelu(batch_added_marker_entity_span_vec)

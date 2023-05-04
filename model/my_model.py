@@ -67,7 +67,7 @@ class MyModel(nn.Module):
     def relation_extraction(self, batch, batch_entity, batch_entity_type):
         """ Relation extraction """
 
-        batch_added_marker_entity_vec, batch_entity_pair_span_list, batch_sent_len_list = \
+        batch_added_marker_entity_vec, batch_entity_pair_list, batch_sent_len_list = \
             self.encoder.batch_get_entity_pair_rep(batch.tokens, batch_entity, batch_entity_type)
 
         batch_pred_raw_res_list, batch_pred_for_loss_sub_task_list = self.classifier(batch_added_marker_entity_vec)
@@ -79,10 +79,9 @@ class MyModel(nn.Module):
                 gold_one_sent_all_sub_task_res_dic.setdefault(relation, [])
 
                 for entity_pair in getattr(batch, relation)[sent_index]:
-                    entity_pair_span = self.classifier.TAGS_Types_fields_dic[relation][1].vocab.itos[
-                        entity_pair]
-                    if entity_pair_span != "[PAD]":
-                        temp_pair = sorted(eval(entity_pair_span))
+                    entity_pair = self.classifier.TAGS_Types_fields_dic[relation][1].vocab.itos[entity_pair]
+                    if entity_pair != "[PAD]":
+                        temp_pair = sorted(eval(entity_pair))
                         if temp_pair not in gold_one_sent_all_sub_task_res_dic[relation]:
                             gold_one_sent_all_sub_task_res_dic[relation].append(temp_pair)
 
@@ -94,14 +93,14 @@ class MyModel(nn.Module):
             pred_one_sent_all_sub_task_res_dic = {}
             for relation_index, relation in enumerate(self.classifier.relation_list):
                 pred_one_sent_all_sub_task_res_dic.setdefault(relation, [])
-                for entity_pair_span, pred_type in zip(batch_entity_pair_span_list[sent_index][:sent_len],
-                                                       batch_pred_raw_res_list[sent_index][:sent_len]):
+                for entity_pair, pred_type in zip(batch_entity_pair_list[sent_index][:sent_len],
+                                                  batch_pred_raw_res_list[sent_index][:sent_len]):
                     if pred_type == relation_index:
-                        pred_one_sent_all_sub_task_res_dic[relation].append(entity_pair_span)
+                        pred_one_sent_all_sub_task_res_dic[relation].append(entity_pair)
             batch_pred_res_list.append(pred_one_sent_all_sub_task_res_dic)
 
         batch_gold_for_loss_sub_task_tensor = self.classifier.make_gold_for_loss(
-            batch_gold_res_list, batch_entity_pair_span_list,
+            batch_gold_res_list, batch_entity_pair_list,
             self.classifier.TAGS_my_types_classification.vocab)
 
         if self.classifier.args.Loss == "CE":

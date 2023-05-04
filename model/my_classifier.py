@@ -44,7 +44,7 @@ class MyRelationClassifier(nn.Module):
             self.relation_input_dim = 2 * self.args.Word_embedding_size
         if self.args.Weight_Loss:
             self.yes_no_weight = torch.tensor([self.args.Min_weight, self.args.Max_weight], device=self.device)
-            print("self.yes_no_weight", self.yes_no_weight)
+            # print("self.yes_no_weight", self.yes_no_weight)
         else:
             self.yes_no_weight = None
 
@@ -94,18 +94,18 @@ class MyRelationClassifier(nn.Module):
 
         return pred_type_tensor, loss_list
 
-    def make_gold_for_loss(self, gold_all_sub_task_res_list, batch_entity_span_list, vocab_dic):
+    def make_gold_for_loss(self, batch_gold_res_list, batch_entity_pair_list, vocab_dic):
         batch_gold_for_loss_sub_task_list = []
-        for sent_index, sent_entity_pair in enumerate(batch_entity_span_list):
+        for sent_index, sent_entity_pair_list in enumerate(batch_entity_pair_list):
             one_sent_list = []
-            for entity_pair in sent_entity_pair:
-                sub_task_list = []
-                for sub_task, sub_task_values_list in gold_all_sub_task_res_list[sent_index].items():
-                    if entity_pair in sub_task_values_list:
-                        sub_task_list.append(torch.tensor(vocab_dic["yes"], dtype=torch.long, device=self.device))
+            for entity_pair in sent_entity_pair_list:
+                relation_for_entity_pair = []
+                for relation, relation_entity_pair_list in batch_gold_res_list[sent_index].items():
+                    if entity_pair in relation_entity_pair_list:
+                        relation_for_entity_pair.append(torch.tensor(vocab_dic["yes"], dtype=torch.long, device=self.device))
                     else:
-                        sub_task_list.append(torch.tensor(vocab_dic["no"], dtype=torch.long, device=self.device))
-                one_sent_list.append(torch.stack(sub_task_list))
+                        relation_for_entity_pair.append(torch.tensor(vocab_dic["no"], dtype=torch.long, device=self.device))
+                one_sent_list.append(torch.stack(relation_for_entity_pair))
 
             if not one_sent_list:
                 pad_sub_task_list = [torch.tensor(self.ignore_index, dtype=torch.long, device=self.device)] * len(
@@ -115,8 +115,8 @@ class MyRelationClassifier(nn.Module):
             batch_gold_for_loss_sub_task_list.append(torch.stack(one_sent_list))
 
         gold_for_loss_sub_task_tensor = pad_sequence(batch_gold_for_loss_sub_task_list, batch_first=True,
-                                                     padding_value=self.ignore_index)
-        gold_for_loss_sub_task_tensor = gold_for_loss_sub_task_tensor.permute(2, 0, 1)
+                                                     padding_value=self.ignore_index)   # [batch, max(number of entity_pair), number_of_relation]
+        gold_for_loss_sub_task_tensor = gold_for_loss_sub_task_tensor.permute(2, 0, 1)  # [number_of_relation, batch, max(number of entity_pair)]
 
         return gold_for_loss_sub_task_tensor
 
