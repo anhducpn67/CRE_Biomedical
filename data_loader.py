@@ -83,7 +83,8 @@ def get_corpus_list_information(all_data_flag, corpus_list, base_large):
         relation_list.extend(value["relation_list"])
     entity_type_list = list(set(entity_type_list))
     relation_list = list(set(relation_list))
-
+    entity_type_list.sort()
+    relation_list.sort()
     return corpus_information, combining_data_files_list, entity_type_list, relation_list
 
 

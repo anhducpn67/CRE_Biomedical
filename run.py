@@ -29,8 +29,8 @@ parser.add_argument('--GPU', default="0", type=str)
 parser.add_argument('--ALL_DATA', action='store_true', default=False)
 parser.add_argument('--BATCH_SIZE', default=8, type=int)
 
-parser.add_argument('--EPOCH', default=3, type=int)
-parser.add_argument('--MIN_EPOCH_VALID', default=2, type=int)
+parser.add_argument('--EPOCH', default=30, type=int)
+parser.add_argument('--MIN_EPOCH_VALID', default=5, type=int)
 parser.add_argument('--EARLY_STOP_NUM', default=5, type=int)
 parser.add_argument('--MEMORY_SIZE', default=100, type=int)
 
