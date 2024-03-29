@@ -22,7 +22,12 @@ pip install scikit-learn
 
 # How to run
 - Config arguments in file `run.sh`
+  ID: experiment's ID
+  Corpus_list: List tasks
+  MEMORY_SIZE: memory size
 - Run following command in terminal
 ```
 ./run.sh
 ```
+
+# Result: All result for exeriment ID are saved to folder `result\{ID}`
