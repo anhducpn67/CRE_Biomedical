@@ -30,7 +30,7 @@ pip install scikit-learn
 ./run.sh
 ```
 
-# Result: 
+# Result for experiment ID
 - Model's performance are saved to folder `result\detail_performance\continual_{ID}` \
   Performance after training `i` task [T_1, T_2, ..., T_i] is saved to folder `result\continual_{ID}\detail_performance\{i}`
 - Model is saved to folder file `result\save_model\model_{ID}`
