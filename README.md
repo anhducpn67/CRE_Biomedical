@@ -1,3 +1,8 @@
+# Dataset
+1. Download dataset from this link: 
+https://drive.google.com/file/d/1-eDQ1tWpxNjLt-ZOP0htbE700R0q6tzW/view?usp=sharing
+2. Unzip into project's folder
+
 # How to install (conda)
 1. Create a new environment `cre_biomedical` with python version 3.7
 ```
