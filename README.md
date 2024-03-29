@@ -24,7 +24,7 @@ pip install scikit-learn
 - Config arguments in file `run.sh` \
   ID: experiment's ID \
   Corpus_list: List tasks \
-  MEMORY_SIZE: memory size \
+  MEMORY_SIZE: memory size
 - Run following command in terminal
 ```
 ./run.sh
